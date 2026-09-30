@@ -1,0 +1,6 @@
+{
+  "name": "plinth-relay",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" }
+}
