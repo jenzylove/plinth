@@ -13,3 +13,10 @@ Facts only, with dates. The user writes the Developer Experience Report from the
 - Third link: signed in successfully.
 - Defaults after creation: dailyLimit 50,000 USD, Developer Mode off, abnormalTxnHandling AutoReject, tradeAllTokens false, sessions 48h (signInMaxTime 7 days). A $50,000 default daily limit is high for a new AI-operated wallet.
 - Same EVM address on BSC, Ethereum, Base, Arbitrum, Polygon, Robinhood Chain.
+
+## 2026-09-30 Web3 API first call
+- Signing per docs (ISO timestamp + METHOD + /build path + body, HMAC-SHA256, base64) was accepted: no 40102.
+- Every RWA endpoint (platforms, price, underlying-market, underlying-profile) returned HTTP 200 with body code 40304 "Service not available due to compliance restriction" when called from a US cloud IP (Google Cloud, Columbus, Ohio).
+- The error arrives as HTTP 200 with success:false, not a 4xx. Easy to miss in code that checks status only.
+- Docs do not say the API is IP-geofenced, or which regions are allowed, or that server deployments must pick a non-US region.
+- `baw` (Agentic Wallet CLI) sign-in, settings and address calls worked from the same US IP.
