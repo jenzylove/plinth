@@ -35,3 +35,11 @@ Facts only, with dates. The user writes the Developer Experience Report from the
 - `rwa/platforms` now reports 87 bStock tickers on BSC; the official eligible list we used on the same day had 68.
 - `rwa/price` returns both `tokenPrice` (on-chain token) and `referencePrice` (underlying), e.g. NVDAB 230.67 vs 230.490627.
 - `underlying-market.statusInfo` gives openState and reasonCode ("TRADING"); marketStatus, nextOpenTime and nextCloseTime came back null for NVDAB during US hours.
+
+## 2026-09-30 Agentic Wallet contract-call on mainnet
+- New container, so the CLI session was gone: `baw wallet status` said UNCONNECTED even though the app session was still valid. Re-sign-in took one QR scan; `auth verify` returned SUCCESS in under 3 minutes.
+- Settings after the user's setup: devMode enabled until 2026-10-07 (7 days), session 48h, dailyLimit 1000 (default was 50,000).
+- `contract-call preview` decodes an ERC-20 approve fully (type Approve, spender, amount). For our own contract it shows only `ContractInteraction` and the 4-byte selector (0x3d57b2a9), not the function name or arguments, even though the source is verified on Sourcify.
+- Simulation output was exact: USDT -10.000000 from the wallet, allowance 10 -> 0, no risk flags. Useful for showing the saver what they sign.
+- A preview expires after about 2 minutes (expiresAt); a slow human confirmation needs a fresh preview.
+- Both executes returned BROADCASTED with a tx hash within seconds; both confirmed.
