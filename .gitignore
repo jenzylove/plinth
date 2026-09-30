@@ -1,0 +1,20 @@
+# secrets and keys
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+keystore/
+wallets/
+broadcast/*/dry-run/
+# build output
+node_modules/
+dist/
+build/
+out/
+cache/
+.next/
+coverage/
+# local
+.DS_Store
+*.log
