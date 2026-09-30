@@ -27,8 +27,13 @@ kind = "evm-local"
 signer = "local"
 keystore_dir = "../../.studio/wallets"
 # address = "0x..."   # filled by `bag wallet new`
-# address filled by `bag wallet new`
 address = "0xAd14B65e6D85d8f9705f953e7415B94314AA0603"
+
+[wallet.signing]
+# NodeOps hosting is paid over x402 with a Permit2 witness transfer on BSC. The USDC
+# allowance to Permit2 is set per payment to the exact quoted amount.
+extra_domains = [[56, "0x000000000022D473030F116dDEE9F6B43aC78BA3"]]
+extra_primary_types = ["PermitWitnessTransferFrom"]
 
 [llm]
 provider = "pieverse-llm"
