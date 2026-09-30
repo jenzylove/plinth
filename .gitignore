@@ -6,7 +6,7 @@
 *.pem
 keystore/
 wallets/
-broadcast/*/dry-run/
+**/broadcast/*/*/dry-run/
 # build output
 node_modules/
 dist/
