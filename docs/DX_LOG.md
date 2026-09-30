@@ -50,3 +50,8 @@ Facts only, with dates. The user writes the Developer Experience Report from the
 - The managed and Azure options are 48-hour testnet trials. Running on BSC mainnet needs AWS (own account) or NodeOps (pay from the agent wallet).
 - The most detailed provider docs ship inside the npm package (`skills/references/*.md`), not on the website.
 - Studio's model is a request-driven seller agent. A keeper that must act on a schedule has no first-class path; it has to run its own loop inside the served process.
+- `bag init --network bsc-mainnet --destination self --protocols A2A --rails 8183 --seller-price-usd 0` scaffolds 2,527 lines of TypeScript in 10 files plus a 271 MB workspace. The project name must be alphanumeric, 23 chars max, no dashes.
+- The wallet interface exposes `signTransaction` for a legacy tx, which is enough for a keeper to sign its own contract calls in fixed code.
+- `bag llm activate` (SIWE with the agent wallet, free `auto/free` model, $0 allocation) worked first try in under 10 s.
+- `bag deploy prepare --provider nodeops` flags 3 CRITICALs on a fresh mainnet scaffold: Pieverse key missing (fixed by `bag llm activate`), and `storage.kind = local` not deployable (needs an IPFS, S3 or Azure Blob write key from the user).
+- `bag deploy wallet` (no `--provider` flag, unlike its sibling subcommands) lists the gateway's accepted payment assets: USDC on BSC (18 decimals), Base and Arbitrum. It says "Gateway does not expose independent CreateOS credit balance or renewal APIs". The hosting price is only known from the payment challenge at deploy time.

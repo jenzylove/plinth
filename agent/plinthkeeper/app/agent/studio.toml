@@ -40,6 +40,7 @@ network = "bsc-mainnet"
 # zero-deposit default. `bag llm activate` creates the key with $0
 # allocation; switch to a paid model + `bag llm topup` only when you need it.
 initial_allocation_usd = 0
+key_hash = "9c35450569c30526be00fc1d20465e63a2fdafd47b3bb342e8ab4904fc4f26e1"
 
 [llm.auto_renew]
 # hook auto-allocates from Pieverse Account Balance to the API key when Key
@@ -91,3 +92,21 @@ acknowledged_at = "2026-09-30T21:05:53Z"
 max_per_topup_usd = 1.0
 max_per_day_usd = 3.0
 max_per_month_usd = 15.0
+
+[deploy.nodeops]
+# CreateOS hosting paid from the agent's own wallet (no account). Caps below are limits, not a quote.
+mode = "wallet"
+packaging = "zip"
+port = 9000
+
+[deploy.nodeops.payment]
+protocol = "mpp"
+chain = "bsc"
+asset = "USDC"
+months = 1
+max_per_payment_usd = "10.00"
+max_per_day_usd = "10.00"
+max_per_month_usd = "20.00"
+max_approval_gas_wei = "1000000000000000"
+auto_pay = false
+use_existing_credits = false
