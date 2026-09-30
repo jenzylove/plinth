@@ -43,3 +43,10 @@ Facts only, with dates. The user writes the Developer Experience Report from the
 - Simulation output was exact: USDT -10.000000 from the wallet, allowance 10 -> 0, no risk flags. Useful for showing the saver what they sign.
 - A preview expires after about 2 minutes (expiresAt); a slow human confirmation needs a fresh preview.
 - Both executes returned BROADCASTED with a tx hash within seconds; both confirmed.
+
+## 2026-09-30 Agent Studio first look
+- `npm i -g @bnbagent/studio-cli` installs `bag` 0.0.14 cleanly. The website says the CLI is `bnb`; the binary is `bag`.
+- The website FAQ points to docs.bnbchain.org/developer-kit/bnbchain-studio/; the deployment page does not state prices, mainnet support per provider, or whether agents can run scheduled work.
+- The managed and Azure options are 48-hour testnet trials. Running on BSC mainnet needs AWS (own account) or NodeOps (pay from the agent wallet).
+- The most detailed provider docs ship inside the npm package (`skills/references/*.md`), not on the website.
+- Studio's model is a request-driven seller agent. A keeper that must act on a schedule has no first-class path; it has to run its own loop inside the served process.
