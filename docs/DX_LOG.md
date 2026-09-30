@@ -28,3 +28,10 @@ Facts only, with dates. The user writes the Developer Experience Report from the
 - Venus vUSDT on BSC is still per-block (supplyRatePerBlock). There is no on-chain blocks-per-year getter we could call; we measured 0.4501 s per block over the last 1,000,000 blocks and set 70,064,000.
 - Foundry from npm works; forge-std, OpenZeppelin and Solady clone fine as git submodules.
 - A free NodeReal archive key made pinned-block fork tests reproducible (19 fork tests in under 2 minutes cold, under 1 s cached).
+
+## 2026-09-30 Web3 API through a Singapore relay
+- Deployed a 40-line Vercel function in region sin1 (hobby plan allows picking the region in vercel.json). Every RWA call that failed with 40304 from the US succeeded from sin1: platforms, price, underlying-market.
+- Upstream latency from sin1: 92 to 194 ms.
+- `rwa/platforms` now reports 87 bStock tickers on BSC; the official eligible list we used on the same day had 68.
+- `rwa/price` returns both `tokenPrice` (on-chain token) and `referencePrice` (underlying), e.g. NVDAB 230.67 vs 230.490627.
+- `underlying-market.statusInfo` gives openState and reasonCode ("TRADING"); marketStatus, nextOpenTime and nextCloseTime came back null for NVDAB during US hours.
