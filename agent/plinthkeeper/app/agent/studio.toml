@@ -100,7 +100,7 @@ packaging = "zip"
 port = 9000
 
 [deploy.nodeops.payment]
-protocol = "mpp"
+protocol = "x402"
 chain = "bsc"
 asset = "USDC"
 months = 1
