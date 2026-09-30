@@ -20,3 +20,11 @@ Facts only, with dates. The user writes the Developer Experience Report from the
 - The error arrives as HTTP 200 with success:false, not a 4xx. Easy to miss in code that checks status only.
 - Docs do not say the API is IP-geofenced, or which regions are allowed, or that server deployments must pick a non-US region.
 - `baw` (Agentic Wallet CLI) sign-in, settings and address calls worked from the same US IP.
+
+## 2026-09-30 Contracts on a BSC fork
+- Venus's ResilientOracle (0x6592...ab8A) prices only 4 of the 21 liquid bStocks: NVDA, TSLA, SKHY, SPCX. The other 17 revert on getPrice. We use each pool's own time-weighted price (Uniswap/PancakeSwap v3 observe) for those.
+- MRVL's PancakeSwap v3 pool has an observation cardinality of 1, so it has no TWAP until someone pays to raise it. Every other liquid bStock pool keeps 300 to 10,000 observations.
+- bStock addresses in the official list are lowercase; Solidity rejects them until checksummed (QQQ, TSLA hit this).
+- Venus vUSDT on BSC is still per-block (supplyRatePerBlock). There is no on-chain blocks-per-year getter we could call; we measured 0.4501 s per block over the last 1,000,000 blocks and set 70,064,000.
+- Foundry from npm works; forge-std, OpenZeppelin and Solady clone fine as git submodules.
+- A free NodeReal archive key made pinned-block fork tests reproducible (19 fork tests in under 2 minutes cold, under 1 s cached).
