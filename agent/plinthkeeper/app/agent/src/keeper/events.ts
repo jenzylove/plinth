@@ -1,3 +1,4 @@
+// Copied from packages/keeper/src/events.ts by scripts/sync-agent.sh. Edit the original.
 // Where the keeper's risk events come from. Every source is live or an official schedule; if a source
 // cannot be read the keeper logs it and keeps the tighter of the last known state (fail closed).
 import { readFileSync } from 'node:fs';

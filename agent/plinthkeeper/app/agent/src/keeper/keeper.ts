@@ -1,3 +1,4 @@
+// Copied from packages/keeper/src/keeper.ts by scripts/sync-agent.sh. Edit the original.
 // One keeper pass over every Plinth vault: pull out of unhealthy lending markets, set each vault's
 // multiplier from the event policy, and rebalance vaults whose stock leg drifted outside the band.
 // Every write is simulated first; a revert (for example a price check refusing a manipulated pool) is

@@ -1,0 +1,19 @@
+{
+ "note": "Scheduled US macro releases that move the whole market. Times in UTC (ET is UTC-4 until 2026-11-01, UTC-5 after).",
+ "sources": {
+  "jobs": "https://www.bls.gov/schedule/news_release/empsit.htm",
+  "cpi": "https://www.bls.gov/schedule/news_release/cpi.htm",
+  "fomc": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+ },
+ "checked": "2026-09-30",
+ "events": [
+  {"kind": "jobs", "name": "US jobs report (September)", "at": "2026-10-02T12:30:00Z"},
+  {"kind": "cpi", "name": "US CPI (September)", "at": "2026-10-14T12:30:00Z"},
+  {"kind": "fomc", "name": "FOMC rate decision", "at": "2026-10-28T18:00:00Z"},
+  {"kind": "jobs", "name": "US jobs report (October)", "at": "2026-11-06T13:30:00Z"},
+  {"kind": "cpi", "name": "US CPI (October)", "at": "2026-11-10T13:30:00Z"},
+  {"kind": "jobs", "name": "US jobs report (November)", "at": "2026-12-04T13:30:00Z"},
+  {"kind": "fomc", "name": "FOMC rate decision", "at": "2026-12-09T19:00:00Z"},
+  {"kind": "cpi", "name": "US CPI (November)", "at": "2026-12-10T13:30:00Z"}
+ ]
+}

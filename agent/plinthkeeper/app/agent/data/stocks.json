@@ -1,0 +1,207 @@
+{
+ "generated": "2026-09-30T18:28:23.225Z",
+ "note": "Liquid bStocks (a $10k sell costs <=1.3% on 2026-09-30), deepest USDT pool, cap from the calibration file. MRVL left out: its pool keeps no price history (TWAP) and costs ~2% per round trip.",
+ "calibration": "data/calibration-2026-09-30.json",
+ "stocks": [
+  {
+   "sym": "AAPL",
+   "token": "0x431a3BEE82E2ca41e49895CbECE5bB0F76A89b7A",
+   "pool": "0xe9b9998B2EC5430D2246c7f1F8D9f298c97D7365",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 6,
+   "cap10": 60
+  },
+  {
+   "sym": "AMZN",
+   "token": "0x1a4b499833A79A09ad7Cf1D42D7DacF71e92eb00",
+   "pool": "0x7530beb7Bde5843f668cf31b996fa1F748C9b6B1",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 6,
+   "cap10": 60
+  },
+  {
+   "sym": "BABA",
+   "token": "0x4eF9d3062c7F6ebA4AAE4990c5036598C6eff4ec",
+   "pool": "0xfD95CB1391999006Eb91797a7c62acFe88b20292",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 6,
+   "cap10": 60
+  },
+  {
+   "sym": "CRCL",
+   "token": "0x80f3D493EBCe97e343c53D29a137942416B4ffC0",
+   "pool": "0x29967c54c5Bf12E8158c8894376064b30ebaB297",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 3,
+   "cap10": 30
+  },
+  {
+   "sym": "GME",
+   "token": "0x46cEeFDa28Dd7207059ed19B0acdc026955bb15C",
+   "pool": "0x908d49048EB3a7bEdfd238972403842805EAF2bE",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 1.7,
+   "cap10": 17
+  },
+  {
+   "sym": "GOOGL",
+   "token": "0x3F53De71c126BdaBAe20f9cD64848d317f6C3238",
+   "pool": "0x89001D846f7CA36EE089F73eEFC25657E1798144",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 6,
+   "cap10": 60
+  },
+  {
+   "sym": "HOOD",
+   "token": "0xA394dCEa3fd3847fD793afBFd163E2e3858B7c65",
+   "pool": "0xFEeF70FF6F58f0A900e28A77e5A8945aFB343923",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 4.2,
+   "cap10": 42
+  },
+  {
+   "sym": "INTC",
+   "token": "0xe614E2fc6C787035FF51f452e8E826Bfd32D5283",
+   "pool": "0x4dD8e7C67033Ef4A745bB9f82a7C57c676eB2481",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 3.3,
+   "cap10": 33
+  },
+  {
+   "sym": "META",
+   "token": "0x7425889FE94F9d693E8daefE88BCCed6AcFEf4c0",
+   "pool": "0xC2151a561E928D16576d75Ea88544543ac63D80B",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 3.9,
+   "cap10": 39
+  },
+  {
+   "sym": "MSFT",
+   "token": "0x80106cb3EAD06659A5ad19DF39D9b4733863B9b0",
+   "pool": "0x5018b018cEB7645c927c5Cf246786F89ebCbe7Ea",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 6,
+   "cap10": 60
+  },
+  {
+   "sym": "MSTR",
+   "token": "0xE87afb3076AeB0f9B14E368DE8145ae6a2826A14",
+   "pool": "0x692081209619735f25700557078aB084d3E5D007",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 3.2,
+   "cap10": 32
+  },
+  {
+   "sym": "NFLX",
+   "token": "0xD6829Ea836b6FA224d099D40E54B31262f874631",
+   "pool": "0xAFab4441D8B354bBa790229c0E235E7e6187B3D0",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 3.5,
+   "cap10": 35
+  },
+  {
+   "sym": "NVDA",
+   "token": "0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436",
+   "pool": "0xDD9d5164CcBc57bE377a964Fc064135b03D06177",
+   "dex": "uni",
+   "fee": 500,
+   "venusPriced": true,
+   "cap": 5.7,
+   "cap10": 57
+  },
+  {
+   "sym": "QQQ",
+   "token": "0x205812CdBed920aFf76C6580abD681a46D11efc7",
+   "pool": "0xe531fcb1F5a195de7608B9F4f9518544C2cdB693",
+   "dex": "pcs",
+   "fee": 100,
+   "venusPriced": false,
+   "cap": 6,
+   "cap10": 60
+  },
+  {
+   "sym": "SKHY",
+   "token": "0xCA750eF65f295BBECd685Abf54e82CAf297BDB61",
+   "pool": "0xD7d30F434b12F7Ed9b0Ae11fF1C754745a10aD52",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": true,
+   "cap": 6,
+   "cap10": 60
+  },
+  {
+   "sym": "SNDK",
+   "token": "0x3eE4dF61bd4F867E349BEaE8bFE07bc31b4850fb",
+   "pool": "0xE4B5403f5103b02d1E8193B0D7D76D49F3F8ad77",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 3,
+   "cap10": 30
+  },
+  {
+   "sym": "SPCX",
+   "token": "0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1",
+   "pool": "0x977DaFFC095b33872E2741c19568925015C35b4d",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": true,
+   "cap": 3,
+   "cap10": 30
+  },
+  {
+   "sym": "SPY",
+   "token": "0x7138b48df7D98D7e3cc221BfE7192D0a178182D8",
+   "pool": "0x7aA6d92Fc369A8C1EDc631A3aAc44eFB0808ddbF",
+   "dex": "pcs",
+   "fee": 100,
+   "venusPriced": false,
+   "cap": 6,
+   "cap10": 60
+  },
+  {
+   "sym": "TSLA",
+   "token": "0x5b1910eAaD6450E50f816082Aa078C41F10C292f",
+   "pool": "0xB0f5E5400E8F0F7C242F2b7740C004f020579c41",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": true,
+   "cap": 5.1,
+   "cap10": 51
+  },
+  {
+   "sym": "TSM",
+   "token": "0xAB78b89B5bb00236Be0B4B20704cBfa04EfC711c",
+   "pool": "0x03f59988F5c366046321cCcD2BF0E3878e2ed69C",
+   "dex": "pcs",
+   "fee": 2500,
+   "venusPriced": false,
+   "cap": 6,
+   "cap10": 60
+  }
+ ]
+}
