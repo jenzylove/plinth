@@ -1,0 +1,147 @@
+{
+ "generated": "2026-09-30T21:02:59.739Z",
+ "source": "Yahoo Finance daily bars, range=10y, split-adjusted",
+ "rule": "eventCap = min(6, 1 / (1.25 x worst overnight gap)), floored to 0.1",
+ "stocks": [
+  {
+   "sym": "AAPL",
+   "ticker": "AAPL",
+   "worstGap": -0.1296,
+   "on": "2020-03-16",
+   "eventCap": 6
+  },
+  {
+   "sym": "AMZN",
+   "ticker": "AMZN",
+   "worstGap": -0.1176,
+   "on": "2022-10-28",
+   "eventCap": 6
+  },
+  {
+   "sym": "BABA",
+   "ticker": "BABA",
+   "worstGap": -0.1218,
+   "on": "2022-10-24",
+   "eventCap": 6
+  },
+  {
+   "sym": "CRCL",
+   "ticker": "CRCL",
+   "worstGap": -0.058,
+   "on": "2026-08-03",
+   "eventCap": 6
+  },
+  {
+   "sym": "GME",
+   "ticker": "GME",
+   "worstGap": -0.3744,
+   "on": "2021-02-02",
+   "eventCap": 2.1
+  },
+  {
+   "sym": "GOOGL",
+   "ticker": "GOOGL",
+   "worstGap": -0.1027,
+   "on": "2020-03-16",
+   "eventCap": 6
+  },
+  {
+   "sym": "HOOD",
+   "ticker": "HOOD",
+   "worstGap": -0.1779,
+   "on": "2024-08-05",
+   "eventCap": 4.4
+  },
+  {
+   "sym": "INTC",
+   "ticker": "INTC",
+   "worstGap": -0.2448,
+   "on": "2024-08-02",
+   "eventCap": 3.2
+  },
+  {
+   "sym": "META",
+   "ticker": "META",
+   "worstGap": -0.2453,
+   "on": "2022-10-27",
+   "eventCap": 3.2
+  },
+  {
+   "sym": "MSFT",
+   "ticker": "MSFT",
+   "worstGap": -0.1186,
+   "on": "2020-03-16",
+   "eventCap": 6
+  },
+  {
+   "sym": "MSTR",
+   "ticker": "MSTR",
+   "worstGap": -0.2737,
+   "on": "2024-08-05",
+   "eventCap": 2.9
+  },
+  {
+   "sym": "NFLX",
+   "ticker": "NFLX",
+   "worstGap": -0.2966,
+   "on": "2022-04-20",
+   "eventCap": 2.6
+  },
+  {
+   "sym": "NVDA",
+   "ticker": "NVDA",
+   "worstGap": -0.193,
+   "on": "2018-11-16",
+   "eventCap": 4.1
+  },
+  {
+   "sym": "QQQ",
+   "ticker": "QQQ",
+   "worstGap": -0.0946,
+   "on": "2020-03-16",
+   "eventCap": 6
+  },
+  {
+   "sym": "SKHY",
+   "ticker": "000660.KS",
+   "worstGap": -0.1086,
+   "on": "2025-01-31",
+   "eventCap": 6
+  },
+  {
+   "sym": "SNDK",
+   "ticker": "SNDK",
+   "worstGap": -0.1312,
+   "on": "2026-08-06",
+   "eventCap": 6
+  },
+  {
+   "sym": "SPCX",
+   "ticker": "SPCX",
+   "worstGap": -0.1034,
+   "on": "2026-08-05",
+   "eventCap": 6
+  },
+  {
+   "sym": "SPY",
+   "ticker": "SPY",
+   "worstGap": -0.1045,
+   "on": "2020-03-16",
+   "eventCap": 6
+  },
+  {
+   "sym": "TSLA",
+   "ticker": "TSLA",
+   "worstGap": -0.149,
+   "on": "2020-09-08",
+   "eventCap": 5.3
+  },
+  {
+   "sym": "TSM",
+   "ticker": "TSM",
+   "worstGap": -0.1128,
+   "on": "2020-03-16",
+   "eventCap": 6
+  }
+ ]
+}
