@@ -27,7 +27,8 @@ kind = "evm-local"
 signer = "local"
 keystore_dir = "../../.studio/wallets"
 # address = "0x..."   # filled by `bag wallet new`
-address = "0xF0171387B0205bD5e841200e792012b24B72a0Ff"
+# address filled by `bag wallet new`
+address = "0xAd14B65e6D85d8f9705f953e7415B94314AA0603"
 
 [llm]
 provider = "pieverse-llm"
@@ -40,7 +41,7 @@ network = "bsc-mainnet"
 # zero-deposit default. `bag llm activate` creates the key with $0
 # allocation; switch to a paid model + `bag llm topup` only when you need it.
 initial_allocation_usd = 0
-key_hash = "9c35450569c30526be00fc1d20465e63a2fdafd47b3bb342e8ab4904fc4f26e1"
+key_hash = "d87798114f89ee6a6d7b90472b48c9b33294cd3708c567330476940aff3178cd"
 
 [llm.auto_renew]
 # hook auto-allocates from Pieverse Account Balance to the API key when Key
@@ -78,7 +79,7 @@ auto_settle = false                            # opt-in: detect dispute-window-e
 [storage]
 # Deliverables written to local disk (file://). Offline-dev only —
 # does NOT survive deploy. Path from STORAGE_LOCAL_PATH.
-kind = "local"
+kind = "ipfs"
 
 
 [budget]
