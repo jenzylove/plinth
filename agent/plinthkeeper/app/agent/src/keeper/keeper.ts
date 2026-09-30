@@ -3,7 +3,6 @@
 // multiplier from the event policy, and rebalance vaults whose stock leg drifted outside the band.
 // Every write is simulated first; a revert (for example a price check refusing a manipulated pool) is
 // logged and retried on the next pass, never forced.
-import { readFileSync } from 'node:fs';
 import {
   createPublicClient, createWalletClient, http, formatUnits, getAddress, encodeFunctionData,
   type Address, type Hex, type PublicClient, type WalletClient,
@@ -16,7 +15,7 @@ import { earningsEvents, haltEvents, macroEvents } from './events.js';
 
 const WAD = 10n ** 18n;
 const num = (x: bigint, d = 18) => Number(formatUnits(x, d));
-import { DATA } from './data.js';
+import { stocks, gaps } from './data.js';
 
 /** Signs and broadcasts one call; returns the tx hash. Lets a host (e.g. an Agent Studio wallet) sign. */
 export type Sender = (call: { to: Address; data: Hex }) => Promise<Hex>;
@@ -53,9 +52,6 @@ export interface PassReport {
 }
 
 function loadStocks() {
-  const stocks = JSON.parse(readFileSync(new URL('stocks.json', DATA), 'utf8')).stocks as { sym: string; token: string }[];
-  const gapsFile = readFileSync(new URL('gaps-2026-09-30.json', DATA), 'utf8');
-  const gaps = JSON.parse(gapsFile).stocks as { sym: string; eventCap: number }[];
   const byToken = new Map(stocks.map((s) => [getAddress(s.token), s.sym]));
   const eventCap = new Map(gaps.map((g) => [g.sym, g.eventCap]));
   return { stocks, byToken, eventCap };

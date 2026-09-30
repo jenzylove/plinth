@@ -1,14 +1,12 @@
 // Where the keeper's risk events come from. Every source is live or an official schedule; if a source
 // cannot be read the keeper logs it and keeps the tighter of the last known state (fail closed).
-import { readFileSync } from 'node:fs';
 import type { RiskEvent } from './policy.js';
 
-import { DATA } from './data.js';
+import { macro } from './data.js';
 
 /** Scheduled US macro releases (BLS, Federal Reserve), from data/macro-2026.json. */
 export function macroEvents(): RiskEvent[] {
-  const f = JSON.parse(readFileSync(new URL('macro-2026.json', DATA), 'utf8'));
-  return f.events.map((e: any) => ({ kind: e.kind, name: e.name, at: Date.parse(e.at) / 1000 }));
+  return macro.map((e) => ({ kind: e.kind, name: e.name, at: Date.parse(e.at) / 1000 }));
 }
 
 /** Nasdaq's time labels, mapped to UTC hours during US daylight time (ET = UTC-4). */
