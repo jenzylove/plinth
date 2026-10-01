@@ -24,7 +24,7 @@ createRoot(document.getElementById('root')!).render(
         <a href="/demo">Live vault</a>
         <a href="/proof">Proof</a>
       </nav>
-      <a href="/#deposit" className="pill light nav-cta">Open a vault</a>
+      <a href="/#start" className="pill light nav-cta">Start saving</a>
     </header>
     <main>{route()}</main>
   </StrictMode>,

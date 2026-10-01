@@ -4,6 +4,7 @@ import { BSCSCAN, GATE_CODES, KEEPER, vaultStatus } from '../chain';
 import { NAMES, stocks } from '../data';
 import { pct, short, usd } from '../format';
 import { CountUp, Reveal } from '../motion';
+import { connect, hasWallet, withdraw } from '../wallet';
 import { Footer } from './Front';
 
 type Status = Awaited<ReturnType<typeof vaultStatus>>;
@@ -18,6 +19,9 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
   const [log, setLog] = useState<LogRow[] | null>(null);
   const [logError, setLogError] = useState<string | null>(null);
   const [readAt, setReadAt] = useState<Date | null>(null);
+  const [me, setMe] = useState<Address | null>(null);
+  const [wd, setWd] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     const load = () => vaultStatus(address).then((x) => { setV(x); setReadAt(new Date()); }).catch((e) => setError(String(e?.shortMessage ?? e?.message ?? e)));
@@ -28,7 +32,7 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
       .then((d) => setLog(d.rows))
       .catch((e) => setLogError(String(e.message ?? e)));
     return () => clearInterval(t);
-  }, [address]);
+  }, [address, tick]);
 
   const n = (x: bigint) => Number(x) / 1e18;
   const sym = v ? stocks[v.stockId]?.sym : undefined;
@@ -59,6 +63,18 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
                 {bd !== null && <div className="meter"><i style={{ width: `${Math.min(100, bd * 100 * 2.5)}%` }} /></div>}
               </Reveal>
               <Reveal className="card" delay={240}><span>Worst exit today</span><strong><CountUp value={floor} format={(x) => usd(x, 2)} /></strong><small>the floor's value now</small></Reveal>
+            </div>
+            <div className="manage">
+              {!me && hasWallet() && <button className="pill dark" onClick={() => connect().then(setMe).catch((e) => setWd(String(e?.shortMessage ?? e?.message)))}>Connect to manage</button>}
+              {me && me.toLowerCase() === v.saver.toLowerCase() && [0.5, 1].map((f) => (
+                <button key={f} className={`pill ${f === 1 ? 'red' : 'dark'}`} onClick={async () => {
+                  setWd(f === 1 ? 'Withdrawing everything…' : 'Withdrawing half…');
+                  try { const h = await withdraw(me, address, f); setWd(`Done. USDT sent to your wallet: ${BSCSCAN}/tx/${h}`); setTick((t) => t + 1); }
+                  catch (e) { setWd(String((e as { shortMessage?: string })?.shortMessage ?? (e as Error).message).split('\n')[0]); }
+                }}>Withdraw {f === 1 ? 'all' : 'half'} at today's value</button>
+              ))}
+              {me && me.toLowerCase() !== v.saver.toLowerCase() && <span className="muted">Connected as {short(me)}. Only the saver {short(v.saver)} can withdraw.</span>}
+              {wd && <span className="muted">{wd}</span>}
             </div>
             <dl className="sources" style={{ marginTop: 24 }}>
               <div><dt>In {sym ?? 'stock'}</dt><dd>{usd(stockUsd, 2)} (target {usd(n(s.target), 2)}, multiplier {n(s.multiplier)} of cap {n(s.cap)})</dd></div>

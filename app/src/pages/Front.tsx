@@ -7,6 +7,7 @@ import {
 import { calibration, calibrationOf, gapOf, NAMES, replays, symOf } from '../data';
 import { pct, short, usd, wad } from '../format';
 import { CountUp, FillText, Reveal, useScrollProgress } from '../motion';
+import { Deposit } from '../Deposit';
 
 const FLOORS = [
   { bps: 10_000, label: 'get my money back' },
@@ -88,11 +89,16 @@ export function Front() {
           <span className="dot yellow"><Rise /></span> <span className="w">upside.</span>
         </h1>
         <p className="sub">
-          Savings on tokenized US stocks. At 12 months you get your deposit back; until then it rides {name}. On BSC
-          mainnet, rebalanced around the clock.
+          Deposit USDT, pick a stock. At 12 months you get at least your money back; until then part of it rides {name}.
+          Withdraw any time. Runs on BSC mainnet.
         </p>
+        <div className="welcome">
+          <span><i>1</i> Pick a stock and how much you want back</span>
+          <span><i>2</i> Connect your wallet</span>
+          <span><i>3</i> Deposit. Watch it live, withdraw any time</span>
+        </div>
 
-        <div className="calc card">
+        <div className="calc card" id="start">
           <p className="sentence">
             Put{' '}
             <span className="field money">$<input aria-label="Amount in USDT" type="number" min={10} step={10} value={amount} onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))} /></span>{' '}
@@ -116,11 +122,9 @@ export function Front() {
               <div className="stat"><span>Works in {name}</span><strong><CountUp value={calc.inStock} format={(x) => usd(x)} /></strong></div>
               <div className="stat"><span>Back at {calc.months} months, at least</span><strong><CountUp value={calc.promise} format={(x) => usd(x)} /></strong></div>
               <div className="stat"><span>Worst exit today</span><strong><CountUp value={calc.floor} format={(x) => usd(x)} /></strong></div>
-              <button className="pill dark" onClick={() => document.getElementById('deposit')?.scrollIntoView({ behavior: 'smooth' })}>
-                Open a vault <span className="arrow">→</span>
-              </button>
             </div>
           )}
+          {calc && <Deposit stockId={stock?.id} bps={bps} amount={amount} name={name} />}
         </div>
       </section>
 
@@ -215,16 +219,17 @@ export function Front() {
       <section className="cta">
         <Reveal className="cta-icon"><Shield /></Reveal>
         <Reveal as="h2" delay={80}>Open a vault</Reveal>
-        <Reveal as="p" delay={160} className="muted">From {usd(10)} in USDT. Withdraw at today's value any time.</Reveal>
+        <Reveal as="p" delay={160} className="muted">Any amount of USDT on BSC. Withdraw at today's value any time.</Reveal>
         <Reveal delay={240} className="cta-row">
-          <a className="pill dark" href="#deposit">How to deposit <span className="arrow">→</span></a>
-          <a className="pill light" href="/demo">See the live vault</a>
+          <a className="pill dark" href="#start">Start now <span className="arrow">→</span></a>
+          <a className="pill light" href="/demo">See a live vault</a>
         </Reveal>
       </section>
 
       {/* ------------------------------------------------------------ deposit */}
       <section className="deposit" id="deposit">
-        <Reveal as="h2">Open a vault from your Binance Agentic Wallet.</Reveal>
+        <Reveal as="h2">Use Binance Agentic Wallet? Let your agent open it.</Reveal>
+        <Reveal as="p" delay={60} className="muted lead-p">Same vault, opened by your agent with two contract calls in developer mode. Preview first, then execute.</Reveal>
           <Reveal className="card steps" delay={100}>
             <ol>
               <li><b>Approve</b> USDT for the factory <code>{FACTORY}</code>, amount {amount}.</li>
