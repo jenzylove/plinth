@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/utils/math/Math.sol";
 import {PlinthFactory} from "../src/PlinthFactory.sol";
 import {PlinthVault} from "../src/PlinthVault.sol";
-import {IResilientOracle, IUniV3Router02} from "../src/interfaces/External.sol";
+import {IResilientOracle, IUniV3Router02, IVToken} from "../src/interfaces/External.sol";
 import {BscConfig as C} from "../script/BscConfig.sol";
 
 interface IPoolSlot0 {
@@ -15,6 +15,18 @@ interface IPoolSlot0 {
         view
         returns (uint160 sqrtPriceX96, int24 tick, uint16, uint16, uint16, uint32, bool);
     function token0() external view returns (address);
+}
+
+interface IVBnb {
+    function mint() external payable;
+}
+
+interface IVBorrow {
+    function borrow(uint256 amount) external returns (uint256);
+}
+
+interface IVenusEnter {
+    function enterMarkets(address[] calldata vTokens) external returns (uint256[] memory);
 }
 
 /// Replay lab. Real Plinth contracts on a fork of BSC mainnet walk a real NVDA price path from
@@ -139,6 +151,84 @@ contract ReplayLabTest is Test {
             rows[k] = Row(s.total, s.floor, s.stockUsd, v.multiplier(), b.stock + b.safe, b.stock, s.price);
         }
         _write(name, at, rows);
+    }
+
+    // ------------------------------------------------------------ lending stress
+
+    address constant VBNB = 0xA07c5b74C9B40447a954e1466938b865b6BBea36;
+
+    /// Venus USDT utilization pushed up with real borrows (100k BNB of collateral), not a mocked read.
+    /// The vault's safe leg sits in Venus until the gate's 92% line is crossed; then anyone can pull it
+    /// out and it moves to Aave, which still passes. Writes data/replay-venus-utilization.json.
+    function test_replay_venus_utilization() public {
+        deal(C.USDT, saver, 1000e18);
+        vm.startPrank(saver);
+        IERC20(C.USDT).approve(address(factory), 1000e18);
+        PlinthVault v = PlinthVault(factory.open(nvdaId, 10_000, 1000e18));
+        vm.stopPrank();
+        assertEq(v.marketIndex(), 1, "starts in Venus");
+
+        address borrower = makeAddr("borrower");
+        vm.deal(borrower, 100_000 ether);
+        vm.startPrank(borrower);
+        IVBnb(VBNB).mint{value: 100_000 ether}();
+        address[] memory mk = new address[](1);
+        mk[0] = VBNB;
+        IVenusEnter(IVToken(C.VENUS_VUSDT).comptroller()).enterMarkets(mk);
+        vm.stopPrank();
+
+        uint256[6] memory targets = [uint256(0), 0.85e18, 0.9e18, 0.92e18, 0.93e18, 0.95e18];
+        uint256[] memory util = new uint256[](6);
+        uint256[] memory gate = new uint256[](6);
+        uint256[] memory market = new uint256[](6);
+        uint256[] memory total = new uint256[](6);
+        bool pulled;
+        for (uint256 k = 0; k < 6; k++) {
+            if (targets[k] > 0) _borrowTo(borrower, targets[k]);
+            util[k] = _utilization();
+            PlinthVault.Status memory s = v.status();
+            if (!pulled && s.gateCode != 0) {
+                vm.prank(makeAddr("anyone"));
+                v.pullOutIfUnhealthy();
+                pulled = true;
+                s = v.status();
+            }
+            (gate[k], market[k], total[k]) = (_venusGate(), s.marketIndex, s.total);
+        }
+        assertTrue(pulled, "gate tripped");
+        assertEq(v.marketIndex(), 2, "moved to Aave");
+        assertEq(IERC20(C.VENUS_VUSDT).balanceOf(address(v)), 0, "nothing left in Venus");
+        assertApproxEqRel(total[5], total[0], 0.002e18, "no loss moving out");
+
+        string memory o = "util";
+        vm.serializeUint(o, "forkBlock", FORK_BLOCK);
+        vm.serializeUint(o, "collateralBnb", 100_000);
+        vm.serializeUint(o, "maxUtilization", 0.92e18);
+        vm.serializeUint(o, "utilization", util);
+        vm.serializeUint(o, "venusGateCode", gate);
+        vm.serializeUint(o, "vaultMarket", market);
+        string memory out = vm.serializeUint(o, "vaultTotal", total);
+        vm.writeJson(out, "../data/replay-venus-utilization.json");
+    }
+
+    /// Borrow USDT from Venus until utilization (the gate's formula) reaches `u`.
+    function _borrowTo(address borrower, uint256 u) internal {
+        IVToken vt = IVToken(C.VENUS_VUSDT);
+        uint256 supplied = vt.getCash() + vt.totalBorrows() - vt.totalReserves();
+        uint256 want = supplied * u / 1e18;
+        uint256 have = vt.totalBorrows();
+        if (want <= have) return;
+        vm.prank(borrower);
+        require(IVBorrow(C.VENUS_VUSDT).borrow(want - have + 1e18) == 0, "venus borrow");
+    }
+
+    function _utilization() internal view returns (uint256) {
+        IVToken vt = IVToken(C.VENUS_VUSDT);
+        return vt.totalBorrows() * 1e18 / (vt.getCash() + vt.totalBorrows() - vt.totalReserves());
+    }
+
+    function _venusGate() internal view returns (uint256) {
+        return _utilization() > 0.92e18 ? 3 : 0; // SafeLeg.HIGH_UTILIZATION
     }
 
     // ------------------------------------------------------------ price control
