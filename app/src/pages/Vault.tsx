@@ -3,7 +3,8 @@ import type { Address } from 'viem';
 import { BSCSCAN, GATE_CODES, KEEPER, vaultStatus } from '../chain';
 import { NAMES, stocks } from '../data';
 import { pct, short, usd } from '../format';
-import { PlinthFigure } from '../Plinth';
+import { CountUp, Reveal } from '../motion';
+import { Footer } from './Front';
 
 type Status = Awaited<ReturnType<typeof vaultStatus>>;
 const MARKETS = ['Plain USDT (earning nothing)', 'Venus', 'Aave'];
@@ -33,7 +34,7 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
   const sym = v ? stocks[v.stockId]?.sym : undefined;
 
   return (
-    <section className="vault">
+    <section className="page vault">
       {demo && (
         <p className="banner">
           Live: a real vault on BSC mainnet. Everything here is read from the chain every 30 seconds.
@@ -48,16 +49,18 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
         const bd = s.breakDistance > 10n ** 30n ? null : n(s.breakDistance);
         return (
           <>
-            <div className="vault-top">
-            <PlinthFigure total={total} floor={floor} stock={stockUsd} breakDistance={bd} label={sym ?? 'stock'} />
-            <div className="figures">
-              <div><span>Value now</span><strong>{usd(total, 2)}</strong></div>
-              <div><span>Floor today</span><strong>{usd(floor, 2)}</strong><small>grows to {usd(n(s.promised), 2)} by {new Date(Number(s.maturity) * 1000).toISOString().slice(0, 10)}</small></div>
-              <div><span>Break distance</span><strong>{bd === null ? 'nothing in stock' : pct(bd)}</strong><small>the single drop in {sym ?? 'the stock'} that would touch the floor today</small></div>
-              <div><span>Worst-case exit today</span><strong>{usd(floor, 2)}</strong><small>the floor's value now</small></div>
+            <div className="dash">
+              <Reveal className="card black"><span>Value now</span><strong><CountUp value={total} format={(x) => usd(x, 2)} /></strong><small>in USDT, read {readAt?.toISOString().slice(11, 19)} UTC</small></Reveal>
+              <Reveal className="card" delay={80}><span>Floor today</span><strong><CountUp value={floor} format={(x) => usd(x, 2)} /></strong><small>grows to {usd(n(s.promised), 2)} by {new Date(Number(s.maturity) * 1000).toISOString().slice(0, 10)}</small></Reveal>
+              <Reveal className="card" delay={160}>
+                <span>Break distance</span>
+                <strong>{bd === null ? 'no stock' : <CountUp value={bd * 100} format={(x) => x.toFixed(1) + '%'} />}</strong>
+                <small>the single drop in {sym ?? 'the stock'} that would touch the floor today</small>
+                {bd !== null && <div className="meter"><i style={{ width: `${Math.min(100, bd * 100 * 2.5)}%` }} /></div>}
+              </Reveal>
+              <Reveal className="card" delay={240}><span>Worst exit today</span><strong><CountUp value={floor} format={(x) => usd(x, 2)} /></strong><small>the floor's value now</small></Reveal>
             </div>
-            </div>
-            <dl className="sources">
+            <dl className="sources" style={{ marginTop: 24 }}>
               <div><dt>In {sym ?? 'stock'}</dt><dd>{usd(stockUsd, 2)} (target {usd(n(s.target), 2)}, multiplier {n(s.multiplier)} of cap {n(s.cap)})</dd></div>
               <div><dt>Safe leg</dt><dd>{usd(n(s.safeUsd), 2)} in {MARKETS[Number(s.marketIndex)] ?? `market ${s.marketIndex}`}, {pct(n(s.floorRate), 2)} a year, {GATE_CODES[s.gateCode] ?? `gate code ${s.gateCode}`}</dd></div>
               <div><dt>Saver</dt><dd><a href={`${BSCSCAN}/address/${v.saver}`}>{short(v.saver)}</a></dd></div>
@@ -73,7 +76,7 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
         <ol className="log">
           {log.map((r) => (
             <li key={r.tx + r.event + (r as LogRow & { logIndex?: number }).logIndex}>
-              <span className="ev">{r.event}</span> <span className="det">{r.detail}</span> <a href={`${BSCSCAN}/tx/${r.tx}`}>{short(r.tx)}</a> <span className="blk">block {r.block}</span>
+              <span className={`ev ${r.event}`}>{r.event}</span> <span className="det">{r.detail}</span> <a href={`${BSCSCAN}/tx/${r.tx}`}>{short(r.tx)}</a> <span className="blk">block {r.block}</span>
             </li>
           ))}
         </ol>
@@ -84,6 +87,7 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
           <a href={`${BSCSCAN}/address/${address}#events`}>BscScan</a>.
         </p>
       )}
+      <Footer />
     </section>
   );
 }

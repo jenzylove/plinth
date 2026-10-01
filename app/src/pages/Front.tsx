@@ -1,25 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import { floorValue, startingExposure, YEAR_SECONDS } from '@core/cppi';
-import { bestMarket, factoryTerms, FACTORY, GATE_CODES, listedStocks, safeMarkets, type ListedStock, type SafeMarket } from '../chain';
-import { calibration, calibrationOf, NAMES, symOf } from '../data';
-import { pct, usd } from '../format';
-import { PlinthFigure } from '../Plinth';
+import {
+  BSCSCAN, DEMO_VAULT, FACTORY, GATE_CODES, KEEPER, bestMarket, factoryTerms, listedStocks, safeMarkets, vaultStatus,
+  type ListedStock, type SafeMarket,
+} from '../chain';
+import { calibration, calibrationOf, gapOf, NAMES, replays, symOf } from '../data';
+import { pct, short, usd, wad } from '../format';
+import { CountUp, FillText, Reveal, useScrollProgress } from '../motion';
 
 const FLOORS = [
-  { bps: 10_000, label: 'Get my money back' },
-  { bps: 9_500, label: '95% back' },
-  { bps: 9_000, label: '90% back' },
+  { bps: 10_000, label: 'get my money back' },
+  { bps: 9_500, label: 'get 95% back' },
+  { bps: 9_000, label: 'get 90% back' },
 ];
 
 interface Live { markets: SafeMarket[]; maxFloorRate: number; termSeconds: number; stocks: (ListedStock & { sym: string })[] }
+type VaultLive = Awaited<ReturnType<typeof vaultStatus>>;
+
+const Shield = () => (
+  <svg viewBox="0 0 24 24" aria-hidden><path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6l7-3z" fill="currentColor" /></svg>
+);
+const Rise = () => (
+  <svg viewBox="0 0 24 24" aria-hidden><path d="M4 16l5-5 4 3 7-7" stroke="currentColor" strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+);
+const Clock = () => (
+  <svg viewBox="0 0 24 24" aria-hidden><circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2.6" fill="none" /><path d="M12 8v4l3 2" stroke="currentColor" strokeWidth="2.6" fill="none" strokeLinecap="round" /></svg>
+);
 
 export function Front() {
   const [live, setLive] = useState<Live | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [vault, setVault] = useState<VaultLive | null>(null);
   const [sym, setSym] = useState('NVDA');
   const [bps, setBps] = useState(10_000);
   const [amount, setAmount] = useState(1000);
-  const [showDeposit, setShowDeposit] = useState(false);
+  const [open, setOpen] = useState<number | null>(0);
 
   useEffect(() => {
     Promise.all([safeMarkets(amount), factoryTerms(), listedStocks()])
@@ -28,11 +43,13 @@ export function Front() {
         stocks: ls.filter((s) => s.enabled).map((s) => ({ ...s, sym: symOf(s.token) ?? '' })).filter((s) => s.sym),
       }))
       .catch((e) => setError(String(e?.shortMessage ?? e?.message ?? e)));
+    vaultStatus(DEMO_VAULT).then(setVault).catch(() => setVault(null));
   }, []);
 
   const stock = live?.stocks.find((s) => s.sym === sym);
   const market = live ? bestMarket(live.markets) : null;
   const cal = calibrationOf(sym);
+  const gap = gapOf(sym);
   const name = NAMES[sym] ?? sym;
 
   const calc = useMemo(() => {
@@ -47,13 +64,35 @@ export function Front() {
 
   const scale = amount / 1000; // the backtest is per $1,000
 
-  return (
-    <section className="front">
-      <div className="hero">
-        <div className="hero-text">
-          <p className="kicker">Capital-protected savings on tokenized US stocks · BSC mainnet</p>
-          <h1>Get your money back at 12 months, plus the upside of a US stock.</h1>
+  // The replay's headline: margin over the floor right after Nvidia's 2018 gap opened.
+  const r18 = replays.results[0];
+  const gapStep = replays.paths.paths[0].steps.findIndex((s: { date: string; kind: string }) => s.date === '2018-11-16' && s.kind === 'open');
+  const plinthAtGap = wad(r18.plinthTotal[gapStep]) - wad(r18.floor[gapStep]);
+  const bankAtGap = wad(r18.bankTotal[gapStep]) - wad(r18.floor[gapStep]);
+  const bars = r18.plinthTotal.map(wad);
+  const bLo = Math.min(...r18.floor.map(wad)) - 3, bHi = Math.max(...bars);
 
+  const v = vault?.s;
+  const n = (x: bigint) => Number(x) / 1e18;
+
+  return (
+    <div className="landing">
+      {/* ------------------------------------------------------------ hero */}
+      <section className="hero">
+        <h1 className="headline">
+          <span className="w">Get</span> <span className="w">your</span>{' '}
+          <span className="dot red"><Shield /></span> <span className="w">money</span>{' '}
+          <span className="w">back.</span>
+          <br />
+          <span className="w grey">Keep</span> <span className="w grey">the</span>{' '}
+          <span className="dot yellow"><Rise /></span> <span className="w">upside.</span>
+        </h1>
+        <p className="sub">
+          Savings on tokenized US stocks. At 12 months you get your deposit back; until then it rides {name}. On BSC
+          mainnet, rebalanced around the clock.
+        </p>
+
+        <div className="calc card">
           <p className="sentence">
             Put{' '}
             <span className="field money">$<input aria-label="Amount in USDT" type="number" min={10} step={10} value={amount} onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))} /></span>{' '}
@@ -66,69 +105,228 @@ export function Front() {
             and{' '}
             <span className="field">
               <select aria-label="Floor" value={bps} onChange={(e) => setBps(Number(e.target.value))}>
-                {FLOORS.map((f) => <option key={f.bps} value={f.bps}>{f.label.toLowerCase()}</option>)}
+                {FLOORS.map((f) => <option key={f.bps} value={f.bps}>{f.label}</option>)}
               </select>
-            </span>.
+            </span>
           </p>
-
-          {error && <p className="fail">Could not read BSC right now: {error}. Nothing below is a guess, so nothing is shown.</p>}
+          {error && <p className="fail">Could not read BSC right now: {error}. Nothing is shown rather than a guess.</p>}
           {!error && !calc && <p className="muted">Reading live rates and caps from BSC…</p>}
-        </div>
-        {calc && (
-          <PlinthFigure
-            total={amount}
-            floor={calc.floor}
-            stock={calc.inStock}
-            breakDistance={calc.inStock > 0 ? (amount - calc.floor) / calc.inStock : null}
-            label={name}
-          />
-        )}
-      </div>
-
-      {calc && stock && (
-        <div className="answer">
-          <p className="lead">
-            <strong>{usd(calc.inStock)}</strong> of your {usd(amount)} starts working in {name}. It grows as {name} rises.
-          </p>
-          <p>
-            If {name} falls, Plinth moves your money to safety on its own. At {calc.months} months you get at least{' '}
-            <strong>{usd(calc.promise)}</strong>.
-          </p>
-          <p>
-            Leave early any time. If you left today, the worst case would be <strong>{usd(calc.floor)}</strong>.
-          </p>
-          {bps === 10_000 && cal ? (
-            <p>
-              Tested on every 12-month window of the last 10 years ({cal.windows} windows from {cal.from}):{' '}
-              lowest result {usd(cal.min * scale, 2)}
-              {cal.breaches > 0 && <>, and {cal.breaches} windows ended more than 50 cents per $1,000 below the floor</>}.
-              Typical result {usd(cal.median * scale)}. Best {usd(cal.max * scale)}. Beat plain lending {pct(cal.beatSafeOnly, 0)} of the time.
-            </p>
-          ) : (
-            <p className="muted">The 10-year test covers the 100% floor. See <a href="/proof">Proof</a>.</p>
+          {calc && (
+            <div className="calc-out">
+              <div className="stat"><span>Works in {name}</span><strong><CountUp value={calc.inStock} format={(x) => usd(x)} /></strong></div>
+              <div className="stat"><span>Back at {calc.months} months, at least</span><strong><CountUp value={calc.promise} format={(x) => usd(x)} /></strong></div>
+              <div className="stat"><span>Worst exit today</span><strong><CountUp value={calc.floor} format={(x) => usd(x)} /></strong></div>
+              <button className="pill dark" onClick={() => document.getElementById('deposit')?.scrollIntoView({ behavior: 'smooth' })}>
+                Open a vault <span className="arrow">→</span>
+              </button>
+            </div>
           )}
-          <button className="primary" onClick={() => setShowDeposit(!showDeposit)}>Deposit</button>
+        </div>
+      </section>
 
+      {/* ------------------------------------------------------------ how it works */}
+      <section className="how" id="how">
+        <div className="split">
+          <Reveal as="h2">Your money in two parts, and a keeper that never sleeps.</Reveal>
+          <Reveal as="p" delay={120} className="muted">
+            The same method bank desks have sold for 40 years, with one change: tokenized stocks trade at 3am on a Sunday,
+            so Plinth can move to safety when a bank desk cannot.
+          </Reveal>
+        </div>
+        <div className="cards">
+          <Reveal className="card step">
+            <span className="tag yellow">1 · The safe part</span>
+            <h3>Most of it earns interest, behind a health check.</h3>
+            <p className="muted">
+              Lent on {market?.name ?? 'Venus or Aave'} {market && <>at <b>{pct(market.rate, 2)}</b> a year, {pct(market.utilization)} lent out</>}.
+              If a pool gets crowded or paused, the vault pulls out first.
+            </p>
+            {calc && <div className="big"><CountUp value={amount - calc.inStock} format={(x) => usd(x)} /><small>of {usd(amount)}</small></div>}
+          </Reveal>
+          <Reveal className="card step" delay={120}>
+            <span className="tag red">2 · The stock part</span>
+            <h3>The rest rides {name}.</h3>
+            <p className="muted">
+              Sized so a single drop of {calc && calc.inStock > 0 ? <b>{pct((amount - calc.floor) / calc.inStock)}</b> : '–'} still leaves
+              you above the floor. {gap && <>{name}'s worst overnight gap in 10 years was <b>{pct(gap.worstGap)}</b> ({gap.on}).</>}
+            </p>
+            {calc && <div className="big"><CountUp value={calc.inStock} format={(x) => usd(x)} /><small>in {name}</small></div>}
+          </Reveal>
+          <Reveal className="card step black" delay={240}>
+            <span className="tag">3 · The keeper</span>
+            <h3>Rebalances 24/7 and cuts risk before big news.</h3>
+            <p>
+              Before earnings and jobs reports it lowers the multiplier. It can never withdraw, and never raise risk above the cap.
+            </p>
+            <div className="big">{stock ? stock.cap : '–'}<small>{name}'s multiplier cap</small></div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------ the big number */}
+      <section className="proofband">
+        <Reveal className="huge">
+          <CountUp value={plinthAtGap} format={(x) => usd(x, 2)} />
+        </Reveal>
+        <Reveal className="huge-note" delay={150}>
+          <p>
+            <b>Above the floor</b> the morning Nvidia opened {pct(gap?.worstGap ?? -0.193)} on 2018-11-16, in a replay of
+            the real contracts on BSC mainnet. A bank desk running the same method was {usd(bankAtGap, 2)} above.
+          </p>
+          <p className="muted">
+            The difference: the keeper cut risk the day before the report. <a href="/proof">See every step</a>.
+          </p>
+        </Reveal>
+      </section>
+
+      {/* ------------------------------------------------------------ scroll-filled line */}
+      <section className="fill">
+        <FillText
+          text="Protect what you put in, and still"
+          pill={`ride ${name}`}
+          pillWords={(live?.stocks ?? []).filter((x) => x.sym !== sym).slice(0, 4).map((x) => `ride ${NAMES[x.sym] ?? x.sym}`)}
+        />
+      </section>
+
+      {/* ------------------------------------------------------------ explainer */}
+      <section className="explain">
+        <div className="acc">
+          <Reveal as="h2">What is going on here.</Reveal>
+          {[
+            ['A floor we defend, not a guarantee', `The vault keeps enough in safe lending that, grown at today's rate, it reaches your promise at 12 months. Everything above that line can go into the stock. A drop bigger than the break distance before anyone can trade would break the floor: that is the named risk, and it is why each stock's multiplier comes from its worst day in 10 years.`],
+            ['Why 24/7 trading matters', `A bank desk can only sell when New York is open. Overnight gaps are where it loses. Tokenized stocks trade around the clock on BSC, so the vault can rebalance whenever the price moves.`],
+            ['Where the safe money sits', `Only Venus core and Aave stablecoin markets. Before every move the vault checks cash, how much is lent out (92% at most), pauses and the USDT price feed. If no pool passes, the money waits in USDT.`],
+            ['What you can do any time', `Withdraw at today's value. The vault is a contract only you can withdraw from; the keeper can rebalance or lower risk and nothing else.`],
+          ].map(([q, a], i) => (
+            <Reveal key={q} delay={i * 80} className={`acc-row ${open === i ? 'open' : ''}`}>
+              <button onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
+                {q} <span className="plus">{open === i ? '−' : '+'}</span>
+              </button>
+              <p>{a}</p>
+            </Reveal>
+          ))}
+        </div>
+
+      </section>
+
+      <Stage v={v} bars={bars} bLo={bLo} bHi={bHi} />
+
+      {/* ------------------------------------------------------------ call to action */}
+      <section className="cta">
+        <Reveal className="cta-icon"><Shield /></Reveal>
+        <Reveal as="h2" delay={80}>Open a vault</Reveal>
+        <Reveal as="p" delay={160} className="muted">From {usd(10)} in USDT. Withdraw at today's value any time.</Reveal>
+        <Reveal delay={240} className="cta-row">
+          <a className="pill dark" href="#deposit">How to deposit <span className="arrow">→</span></a>
+          <a className="pill light" href="/demo">See the live vault</a>
+        </Reveal>
+      </section>
+
+      {/* ------------------------------------------------------------ deposit */}
+      <section className="deposit" id="deposit">
+        <Reveal as="h2">Open a vault from your Binance Agentic Wallet.</Reveal>
+          <Reveal className="card steps" delay={100}>
+            <ol>
+              <li><b>Approve</b> USDT for the factory <code>{FACTORY}</code>, amount {amount}.</li>
+              <li><b>Call</b> <code>open({stock?.id ?? '…'}, {bps}, {amount}e18)</code> on the factory. Your vault is created and the money goes to work in the same transaction.</li>
+              <li><b>Watch it</b> at <code>/vault/&lt;your vault&gt;</code>: value, floor, break distance and every action with a BscScan link.</li>
+            </ol>
+            <p className="muted">Developer mode contract-call, preview first, then execute. Positions live in your vault, not in the wallet.</p>
+          </Reveal>
+      </section>
+
+      {/* ------------------------------------------------------------ sources */}
+      {calc && stock && (
+        <section className="sources-band">
           <dl className="sources">
             <div><dt>Safe leg now</dt><dd>{market ? <>{market.name}, {pct(market.rate, 2)} a year, {pct(market.utilization)} lent out, {GATE_CODES[market.gateCode]}</> : 'no lending market passes the health gate: funds would wait in USDT'}</dd></div>
             <div><dt>Floor assumes</dt><dd>{pct(calc.rate, 2)} a year (the safe leg's rate, capped at {pct(live!.maxFloorRate, 0)})</dd></div>
             <div><dt>Multiplier</dt><dd>{stock.cap} for {name}, the highest with no floor breaks over 10 years (read from the factory)</dd></div>
-            <div><dt>Backtest</dt><dd>{calibration.source}, generated {calibration.generated.slice(0, 10)}</dd></div>
+            <div><dt>10-year test</dt><dd>
+              {bps === 10_000 && cal ? <>{cal.windows} windows from {cal.from}: lowest {usd(cal.min * scale, 2)}, typical {usd(cal.median * scale)}, best {usd(cal.max * scale)}, beat plain lending {pct(cal.beatSafeOnly, 0)} of the time. </> : 'Covers the 100% floor. '}
+              {calibration.source}, {calibration.generated.slice(0, 10)}.
+            </dd></div>
           </dl>
-
-          {showDeposit && (
-            <div className="deposit">
-              <h2>Deposit from your Binance Agentic Wallet</h2>
-              <p>Plinth runs on BSC mainnet. A deposit is two contract calls from your wallet (developer mode, preview first):</p>
-              <ol>
-                <li>Approve USDT <code>0x55d3…7955</code> for the factory <code>{FACTORY}</code>, amount {amount}.</li>
-                <li>Call <code>open({stock.id}, {bps}, {amount}e18)</code> on the factory. Your vault is created and the money goes to work in the same transaction.</li>
-              </ol>
-              <p className="muted">Your vault is a contract only you can withdraw from. The keeper can lower risk or rebalance; it can never move your money anywhere else.</p>
-            </div>
-          )}
-        </div>
+        </section>
       )}
+
+      <Footer />
+    </div>
+  );
+}
+
+function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo: number; bHi: number }) {
+  const [ref, p] = useScrollProgress<HTMLElement>();
+  const n = (x: bigint) => Number(x) / 1e18;
+  const rise = (1 - Math.min(1, p * 1.6)) * 120; // devices settle as the stage scrolls in
+  return (
+    <section className="stage" ref={ref}>
+      <div className="stage-word" style={{ transform: `translateY(${(0.55 - p) * 60}%)` }} aria-hidden>plinth</div>
+      <div className="laptop" style={{ transform: `translateY(${rise}px)` }}>
+        <div className="laptop-screen">
+          <div className="device-bar"><span className="logo-dot" /> Plinth <span className="muted">live vault {short(DEMO_VAULT)}</span></div>
+          <div className="laptop-grid">
+            <div>
+              <p className="device-label">Value now</p>
+              <p className="device-big">{v ? <CountUp value={n(v.total)} format={(x) => usd(x, 2)} /> : '…'}</p>
+              {v && (
+                <div className="chips">
+                  <span className="chip"><i className="c-red" /> floor {usd(n(v.floor), 2)}</span>
+                  <span className="chip"><i className="c-yellow" /> {usd(n(v.stockUsd), 2)} in stock</span>
+                  <span className="chip"><i className="c-green" /> {GATE_CODES[v.gateCode]}</span>
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="device-label">Replay · Nvidia, Nov 2018 · value above the floor</p>
+              <div className="bars">
+                {bars.map((b, k) => <span key={k} style={{ height: `${((b - bLo) / (bHi - bLo)) * 100}%`, transform: `scaleY(${Math.min(1, p * 2.2)})` }} />)}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="laptop-base" />
+      </div>
+      <div className="phone" style={{ transform: `translateY(${rise * 1.6}px)` }}>
+        <div className="phone-notch" />
+        <p className="device-label">Break distance</p>
+        <p className="device-big small">{v && v.breakDistance < 10n ** 30n ? <CountUp value={n(v.breakDistance) * 100} format={(x) => x.toFixed(1) + '%'} /> : '–'}</p>
+        <p className="device-label">Multiplier</p>
+        <p className="device-big small">{v ? n(v.multiplier) : '–'}</p>
+        <a className="pill dark" href="/demo">Open →</a>
+      </div>
     </section>
+  );
+}
+
+export function Footer() {
+  return (
+    <footer className="foot">
+      <div className="foot-in">
+      <div className="foot-cols">
+        <div>
+          <p className="foot-h">Plinth</p>
+          <p className="muted">Capital-protected savings on tokenized stocks. Not a guarantee: a floor we defend, with the risks named.</p>
+        </div>
+        <div>
+          <p className="foot-h">On chain</p>
+          <a href={`${BSCSCAN}/address/${FACTORY}`}>Factory {short(FACTORY)}</a>
+          <a href={`${BSCSCAN}/address/${KEEPER}`}>Keeper {short(KEEPER)}</a>
+          <a href={`${BSCSCAN}/address/${DEMO_VAULT}`}>Live vault {short(DEMO_VAULT)}</a>
+        </div>
+        <div>
+          <p className="foot-h">Look closer</p>
+          <a href="/proof">Proof and replays</a>
+          <a href="/demo">Live vault</a>
+          <a href="https://github.com/jenzylove/plinth">Code</a>
+        </div>
+        <div>
+          <p className="foot-h">Risks</p>
+          <p className="muted small">A gap bigger than the break distance before anyone can trade. A lending pool failing faster than the health check. Smart contract bugs. Tokenized stocks are not the stocks themselves.</p>
+        </div>
+      </div>
+      <p className="wordmark" aria-hidden>plinth</p>
+      </div>
+    </footer>
   );
 }

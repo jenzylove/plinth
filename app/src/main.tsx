@@ -18,11 +18,13 @@ function route() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <header className="top">
-      <a href="/" className="brand">Plinth</a>
-      <nav>
+      <a href="/" className="brand"><span className="logo-dot" /> plinth</a>
+      <nav className="navpill">
+        <a href="/#how">How it works</a>
         <a href="/demo">Live vault</a>
         <a href="/proof">Proof</a>
       </nav>
+      <a href="/#deposit" className="pill light nav-cta">Open a vault</a>
     </header>
     <main>{route()}</main>
   </StrictMode>,

@@ -1,10 +1,11 @@
 import { calibration, gaps, NAMES, replays, stocks, type ReplayResult } from '../data';
 import { pct, usd, wad } from '../format';
+import { Footer } from './Front';
 
 export function Proof() {
   const cfg = calibration.config;
   return (
-    <section className="proof">
+    <section className="page proof">
       <h1>Proof</h1>
       <p>
         Three kinds of evidence: a 10-year backtest of every listed stock, replays of real crashes run against the real
@@ -61,6 +62,7 @@ export function Proof() {
 
       <h3>When the lending market gets crowded</h3>
       <Utilization />
+      <Footer />
     </section>
   );
 }
