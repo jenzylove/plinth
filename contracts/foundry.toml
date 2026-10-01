@@ -4,7 +4,7 @@ test = "test"
 script = "script"
 out = "out"
 libs = ["lib"]
-fs_permissions = [{ access = "read", path = "../data" }]
+fs_permissions = [{ access = "read-write", path = "../data" }]
 solc_version = "0.8.28"
 evm_version = "cancun"
 optimizer = true

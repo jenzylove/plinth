@@ -1,0 +1,572 @@
+{
+ "generated": "2026-10-01T19:32:27.317Z",
+ "source": "Yahoo Finance daily bars (open, close), split-adjusted",
+ "stock": {
+  "symbol": "NVDA",
+  "cap": 5.7,
+  "eventCap": 4.1
+ },
+ "bankDesk": {
+  "multiplier": 5,
+  "rebalance": "once a day at the close, no event cuts"
+ },
+ "events": [
+  {
+   "kind": "earnings",
+   "symbol": "NVDA",
+   "name": "Nvidia Q3 FY2019 earnings",
+   "at": 1542316800,
+   "source": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-third-quarter-fiscal-2019"
+  },
+  {
+   "kind": "fomc",
+   "name": "FOMC rate decision",
+   "at": 1785348000,
+   "source": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"
+  }
+ ],
+ "paths": [
+  {
+   "name": "nvda-2018-11",
+   "note": "Nvidia's -19.3% earnings gap (2018-11-16) and the days around it",
+   "ticker": "NVDA",
+   "from": "2018-11-08",
+   "to": "2018-11-30",
+   "steps": [
+    {
+     "date": "2018-11-08",
+     "kind": "close",
+     "price": 1,
+     "at": 1541710800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-09",
+     "kind": "open",
+     "price": 0.982572,
+     "at": 1541773800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-09",
+     "kind": "close",
+     "price": 0.998446,
+     "at": 1541797200,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-12",
+     "kind": "open",
+     "price": 0.980533,
+     "at": 1542033000,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-12",
+     "kind": "close",
+     "price": 0.920142,
+     "at": 1542056400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-13",
+     "kind": "open",
+     "price": 0.939317,
+     "at": 1542119400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-13",
+     "kind": "close",
+     "price": 0.967571,
+     "at": 1542142800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-14",
+     "kind": "open",
+     "price": 1.001505,
+     "at": 1542205800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-14",
+     "kind": "close",
+     "price": 0.957279,
+     "at": 1542229200,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-15",
+     "kind": "open",
+     "price": 0.956114,
+     "at": 1542292200,
+     "keeperMultiplier": 4.1,
+     "reason": "Nvidia Q3 FY2019 earnings: sized for NVDA's worst 10-year overnight gap"
+    },
+    {
+     "date": "2018-11-15",
+     "kind": "close",
+     "price": 0.982523,
+     "at": 1542315600,
+     "keeperMultiplier": 4.1,
+     "reason": "Nvidia Q3 FY2019 earnings: sized for NVDA's worst 10-year overnight gap"
+    },
+    {
+     "date": "2018-11-16",
+     "kind": "open",
+     "price": 0.792854,
+     "at": 1542378600,
+     "keeperMultiplier": 4.1,
+     "reason": "Nvidia Q3 FY2019 earnings: sized for NVDA's worst 10-year overnight gap"
+    },
+    {
+     "date": "2018-11-16",
+     "kind": "close",
+     "price": 0.798243,
+     "at": 1542402000,
+     "keeperMultiplier": 4.1,
+     "reason": "Nvidia Q3 FY2019 earnings: sized for NVDA's worst 10-year overnight gap"
+    },
+    {
+     "date": "2018-11-19",
+     "kind": "open",
+     "price": 0.785426,
+     "at": 1542637800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-19",
+     "kind": "close",
+     "price": 0.702461,
+     "at": 1542661200,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-20",
+     "kind": "open",
+     "price": 0.650808,
+     "at": 1542724200,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-20",
+     "kind": "close",
+     "price": 0.723724,
+     "at": 1542747600,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-21",
+     "kind": "open",
+     "price": 0.750619,
+     "at": 1542810600,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-21",
+     "kind": "close",
+     "price": 0.70251,
+     "at": 1542834000,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-23",
+     "kind": "open",
+     "price": 0.695713,
+     "at": 1542983400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-23",
+     "kind": "close",
+     "price": 0.703918,
+     "at": 1543006800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-26",
+     "kind": "open",
+     "price": 0.727657,
+     "at": 1543242600,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-26",
+     "kind": "close",
+     "price": 0.742997,
+     "at": 1543266000,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-27",
+     "kind": "open",
+     "price": 0.7379,
+     "at": 1543329000,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-27",
+     "kind": "close",
+     "price": 0.746298,
+     "at": 1543352400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-28",
+     "kind": "open",
+     "price": 0.769357,
+     "at": 1543415400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-28",
+     "kind": "close",
+     "price": 0.777076,
+     "at": 1543438800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-29",
+     "kind": "open",
+     "price": 0.777514,
+     "at": 1543501800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-29",
+     "kind": "close",
+     "price": 0.764685,
+     "at": 1543525200,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-30",
+     "kind": "open",
+     "price": 0.76658,
+     "at": 1543588200,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2018-11-30",
+     "kind": "close",
+     "price": 0.794182,
+     "at": 1543611600,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    }
+   ],
+   "series": {
+    "at": [
+     1541710800,
+     1541773800,
+     1541797200,
+     1542033000,
+     1542056400,
+     1542119400,
+     1542142800,
+     1542205800,
+     1542229200,
+     1542292200,
+     1542315600,
+     1542378600,
+     1542402000,
+     1542637800,
+     1542661200,
+     1542724200,
+     1542747600,
+     1542810600,
+     1542834000,
+     1542983400,
+     1543006800,
+     1543242600,
+     1543266000,
+     1543329000,
+     1543352400,
+     1543415400,
+     1543438800,
+     1543501800,
+     1543525200,
+     1543588200,
+     1543611600
+    ],
+    "priceWad": [
+     "1000000000000000000",
+     "982572000000000000",
+     "998446000000000000",
+     "980533000000000000",
+     "920142000000000000",
+     "939317000000000000",
+     "967571000000000000",
+     "1001505000000000000",
+     "957279000000000000",
+     "956114000000000000",
+     "982523000000000000",
+     "792854000000000000",
+     "798243000000000000",
+     "785426000000000000",
+     "702461000000000000",
+     "650808000000000000",
+     "723724000000000000",
+     "750619000000000000",
+     "702510000000000000",
+     "695713000000000000",
+     "703918000000000000",
+     "727657000000000000",
+     "742997000000000000",
+     "737900000000000000",
+     "746298000000000000",
+     "769357000000000000",
+     "777076000000000000",
+     "777514000000000000",
+     "764685000000000000",
+     "766580000000000000",
+     "794182000000000000"
+    ],
+    "multiplierWad": [
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "4100000000000000000",
+     "4100000000000000000",
+     "4100000000000000000",
+     "4100000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000"
+    ],
+    "isClose": [
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "name": "nvda-2026-07",
+   "note": "The worst 5-day stretch of July 2026, picked by rule (lowest close-to-close return)",
+   "ticker": "NVDA",
+   "from": "2026-07-22",
+   "to": "2026-07-29",
+   "steps": [
+    {
+     "date": "2026-07-22",
+     "kind": "close",
+     "price": 1,
+     "at": 1784750400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-23",
+     "kind": "open",
+     "price": 0.987739,
+     "at": 1784813400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-23",
+     "kind": "close",
+     "price": 0.984438,
+     "at": 1784836800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-24",
+     "kind": "open",
+     "price": 0.978261,
+     "at": 1784899800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-24",
+     "kind": "close",
+     "price": 0.975384,
+     "at": 1784923200,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-27",
+     "kind": "open",
+     "price": 0.981798,
+     "at": 1785159000,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-27",
+     "kind": "close",
+     "price": 0.926672,
+     "at": 1785182400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-28",
+     "kind": "open",
+     "price": 0.919551,
+     "at": 1785245400,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-28",
+     "kind": "close",
+     "price": 0.929029,
+     "at": 1785268800,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    },
+    {
+     "date": "2026-07-29",
+     "kind": "open",
+     "price": 0.923559,
+     "at": 1785331800,
+     "keeperMultiplier": 4.2,
+     "reason": "FOMC rate decision: 25% margin before a market-wide release"
+    },
+    {
+     "date": "2026-07-29",
+     "kind": "close",
+     "price": 0.89602,
+     "at": 1785355200,
+     "keeperMultiplier": 5.7,
+     "reason": "no scheduled risk: full cap"
+    }
+   ],
+   "series": {
+    "at": [
+     1784750400,
+     1784813400,
+     1784836800,
+     1784899800,
+     1784923200,
+     1785159000,
+     1785182400,
+     1785245400,
+     1785268800,
+     1785331800,
+     1785355200
+    ],
+    "priceWad": [
+     "1000000000000000000",
+     "987739000000000000",
+     "984438000000000000",
+     "978261000000000000",
+     "975384000000000000",
+     "981798000000000000",
+     "926672000000000000",
+     "919551000000000000",
+     "929029000000000000",
+     "923559000000000000",
+     "896020000000000000"
+    ],
+    "multiplierWad": [
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "5700000000000000000",
+     "4200000000000000000",
+     "5700000000000000000"
+    ],
+    "isClose": [
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1,
+     0,
+     1
+    ]
+   }
+  }
+ ]
+}
