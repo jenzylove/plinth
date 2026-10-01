@@ -25,8 +25,9 @@ export interface Decision {
 }
 
 const H = 3600;
-/** Earnings: from 24 h before the report to 12 h after it (the gap lands at the next open). */
-export const EARNINGS_WINDOW = { before: 24 * H, after: 12 * H };
+/** Earnings: from 24 h before the report to 24 h after it. The gap lands at the next NYSE open, up to
+ *  ~17 h after an after-close report (21:20 UTC report, 14:30 UTC open), so the window must outlast it. */
+export const EARNINGS_WINDOW = { before: 24 * H, after: 24 * H };
 /** Market-wide releases: from 12 h before to 1 h after. */
 export const MACRO_WINDOW = { before: 12 * H, after: 1 * H };
 /** Safety margin before market-wide releases. A policy choice, not derived from data. */

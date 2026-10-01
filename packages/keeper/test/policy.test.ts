@@ -13,7 +13,12 @@ describe('event policy', () => {
   it('cuts to the gap-sized cap in the earnings window', () => {
     expect(decide(nvda, [earnings], T - 23 * 3600).multiplier).toBe(4.1);
     expect(decide(nvda, [earnings], T + 11 * 3600).multiplier).toBe(4.1);
-    expect(decide(nvda, [earnings], T + 13 * 3600).multiplier).toBe(5.7);
+    expect(decide(nvda, [earnings], T + 25 * 3600).multiplier).toBe(5.7);
+  });
+  it('holds the cut through the next open after an after-close report', () => {
+    // Nvidia reported 2018-11-15 21:20 UTC; the -19.3% gap landed at the 14:30 UTC open next day.
+    const report = Date.UTC(2018, 10, 15, 21, 20) / 1000, nextOpen = Date.UTC(2018, 10, 16, 14, 30) / 1000;
+    expect(decide(nvda, [{ ...earnings, at: report }], nextOpen).multiplier).toBe(4.1);
   });
   it('ignores other stocks earnings', () => {
     expect(decide({ ...nvda, symbol: 'TSLA' }, [earnings], T).multiplier).toBe(5.7);
