@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { floorValue, startingExposure, YEAR_SECONDS } from '@core/cppi';
 import {
-  BSCSCAN, DEMO_VAULT, FACTORY, GATE_CODES, KEEPER, bestMarket, factoryTerms, listedStocks, safeMarkets, vaultStatus,
+  BSCSCAN, DEMO_VAULT, FACTORY, GATE_CODES, bestMarket, currentKeeper, factoryTerms, listedStocks, safeMarkets, vaultStatus,
   type ListedStock, type SafeMarket,
 } from '../chain';
 import { calibration, calibrationOf, gapOf, NAMES, replays, symOf } from '../data';
@@ -341,6 +341,8 @@ function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo:
 }
 
 export function Footer() {
+  const [keeper, setKeeper] = useState<string | null>(null);
+  useEffect(() => { currentKeeper().then(setKeeper).catch(() => setKeeper(null)); }, []);
   return (
     <footer className="foot">
       <div className="foot-in">
@@ -352,7 +354,7 @@ export function Footer() {
         <div>
           <p className="foot-h">On chain</p>
           <a href={`${BSCSCAN}/address/${FACTORY}`}>Factory {short(FACTORY)}</a>
-          <a href={`${BSCSCAN}/address/${KEEPER}`}>Keeper {short(KEEPER)}</a>
+          {keeper && <a href={`${BSCSCAN}/address/${keeper}`}>Keeper {short(keeper)}</a>}
           <a href={`${BSCSCAN}/address/${DEMO_VAULT}`}>Live vault {short(DEMO_VAULT)}</a>
         </div>
         <div>

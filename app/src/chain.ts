@@ -6,7 +6,6 @@ export const FACTORY: Address = '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f';
 export const USDT: Address = '0x55d398326f99059fF775485246999027B3197955';
 export const VENUS_ORACLE: Address = '0x6592b5DE802159F3E74B2486b091D11a8256ab8A';
 export const DEMO_VAULT: Address = '0x7285CF07Cb75C4FC5065eC3a72a3ec52A5f12095';
-export const KEEPER: Address = '0xAd14B65e6D85d8f9705f953e7415B94314AA0603';
 export const BSCSCAN = 'https://bscscan.com';
 
 export const client = createPublicClient({
@@ -153,6 +152,9 @@ export async function factoryTerms() {
   ]);
   return { maxFloorRate: fromWad(maxFloorRate), termSeconds: Number(term) };
 }
+
+/** The keeper the factory trusts right now (the owner can move it). */
+export const currentKeeper = () => client.readContract({ address: FACTORY, abi: factoryAbi, functionName: 'keeper' });
 
 export async function vaultStatus(vault: Address) {
   const [s, stockId, saver] = await Promise.all([

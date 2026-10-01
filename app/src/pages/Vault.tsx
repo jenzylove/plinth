@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Address } from 'viem';
-import { BSCSCAN, GATE_CODES, KEEPER, vaultStatus } from '../chain';
+import { BSCSCAN, GATE_CODES, currentKeeper, vaultStatus } from '../chain';
 import { NAMES, stocks } from '../data';
 import { pct, short, usd } from '../format';
 import { CountUp, Reveal } from '../motion';
@@ -22,6 +22,8 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
   const [me, setMe] = useState<Address | null>(null);
   const [wd, setWd] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [keeper, setKeeper] = useState<string | null>(null);
+  useEffect(() => { currentKeeper().then(setKeeper).catch(() => setKeeper(null)); }, []);
 
   useEffect(() => {
     const load = () => vaultStatus(address).then((x) => { setV(x); setReadAt(new Date()); }).catch((e) => setError(String(e?.shortMessage ?? e?.message ?? e)));
@@ -80,7 +82,7 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
               <div><dt>In {sym ?? 'stock'}</dt><dd>{usd(stockUsd, 2)} (target {usd(n(s.target), 2)}, multiplier {n(s.multiplier)} of cap {n(s.cap)})</dd></div>
               <div><dt>Safe leg</dt><dd>{usd(n(s.safeUsd), 2)} in {MARKETS[Number(s.marketIndex)] ?? `market ${s.marketIndex}`}, {pct(n(s.floorRate), 2)} a year, {GATE_CODES[s.gateCode] ?? `gate code ${s.gateCode}`}</dd></div>
               <div><dt>Saver</dt><dd><a href={`${BSCSCAN}/address/${v.saver}`}>{short(v.saver)}</a></dd></div>
-              <div><dt>Keeper</dt><dd><a href={`${BSCSCAN}/address/${KEEPER}`}>{short(KEEPER)}</a> (can rebalance and lower risk, cannot withdraw)</dd></div>
+              <div><dt>Keeper</dt><dd>{keeper ? <a href={`${BSCSCAN}/address/${keeper}`}>{short(keeper)}</a> : 'reading…'} (can rebalance and lower risk, cannot withdraw)</dd></div>
               <div><dt>Read</dt><dd>{readAt?.toISOString().slice(11, 19)} UTC</dd></div>
             </dl>
           </>
