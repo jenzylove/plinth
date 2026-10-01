@@ -3,6 +3,7 @@ import { floorValue, startingExposure, YEAR_SECONDS } from '@core/cppi';
 import { bestMarket, factoryTerms, FACTORY, GATE_CODES, listedStocks, safeMarkets, type ListedStock, type SafeMarket } from '../chain';
 import { calibration, calibrationOf, NAMES, symOf } from '../data';
 import { pct, usd } from '../format';
+import { PlinthFigure } from '../Plinth';
 
 const FLOORS = [
   { bps: 10_000, label: 'Get my money back' },
@@ -48,30 +49,41 @@ export function Front() {
 
   return (
     <section className="front">
-      <h1>Get your money back at 12 months, plus US stock upside.</h1>
+      <div className="hero">
+        <div className="hero-text">
+          <p className="kicker">Capital-protected savings on tokenized US stocks · BSC mainnet</p>
+          <h1>Get your money back at 12 months, plus the upside of a US stock.</h1>
 
-      <div className="controls">
-        <label>
-          <span>Amount</span>
-          <input type="number" min={10} step={10} value={amount} onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))} />
-        </label>
-        <label>
-          <span>Stock</span>
-          <select value={sym} onChange={(e) => setSym(e.target.value)}>
-            {(live?.stocks ?? []).map((s) => <option key={s.sym} value={s.sym}>{NAMES[s.sym] ?? s.sym}</option>)}
-          </select>
-        </label>
-        <div className="floors" role="radiogroup" aria-label="Floor">
-          {FLOORS.map((f) => (
-            <button key={f.bps} role="radio" aria-checked={bps === f.bps} className={bps === f.bps ? 'on' : ''} onClick={() => setBps(f.bps)}>
-              {f.label}
-            </button>
-          ))}
+          <p className="sentence">
+            Put{' '}
+            <span className="field money">$<input aria-label="Amount in USDT" type="number" min={10} step={10} value={amount} onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))} /></span>{' '}
+            into{' '}
+            <span className="field">
+              <select aria-label="Stock" value={sym} onChange={(e) => setSym(e.target.value)}>
+                {(live?.stocks ?? [{ sym: 'NVDA' }]).map((s) => <option key={s.sym} value={s.sym}>{NAMES[s.sym] ?? s.sym}</option>)}
+              </select>
+            </span>{' '}
+            and{' '}
+            <span className="field">
+              <select aria-label="Floor" value={bps} onChange={(e) => setBps(Number(e.target.value))}>
+                {FLOORS.map((f) => <option key={f.bps} value={f.bps}>{f.label.toLowerCase()}</option>)}
+              </select>
+            </span>.
+          </p>
+
+          {error && <p className="fail">Could not read BSC right now: {error}. Nothing below is a guess, so nothing is shown.</p>}
+          {!error && !calc && <p className="muted">Reading live rates and caps from BSC…</p>}
         </div>
+        {calc && (
+          <PlinthFigure
+            total={amount}
+            floor={calc.floor}
+            stock={calc.inStock}
+            breakDistance={calc.inStock > 0 ? (amount - calc.floor) / calc.inStock : null}
+            label={name}
+          />
+        )}
       </div>
-
-      {error && <p className="fail">Could not read BSC right now: {error}. Nothing below is a guess, so nothing is shown.</p>}
-      {!error && !calc && <p className="muted">Reading live rates and caps from BSC…</p>}
 
       {calc && stock && (
         <div className="answer">

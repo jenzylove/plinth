@@ -3,6 +3,7 @@ import type { Address } from 'viem';
 import { BSCSCAN, GATE_CODES, KEEPER, vaultStatus } from '../chain';
 import { NAMES, stocks } from '../data';
 import { pct, short, usd } from '../format';
+import { PlinthFigure } from '../Plinth';
 
 type Status = Awaited<ReturnType<typeof vaultStatus>>;
 const MARKETS = ['Plain USDT (earning nothing)', 'Venus', 'Aave'];
@@ -47,11 +48,14 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
         const bd = s.breakDistance > 10n ** 30n ? null : n(s.breakDistance);
         return (
           <>
+            <div className="vault-top">
+            <PlinthFigure total={total} floor={floor} stock={stockUsd} breakDistance={bd} label={sym ?? 'stock'} />
             <div className="figures">
               <div><span>Value now</span><strong>{usd(total, 2)}</strong></div>
               <div><span>Floor today</span><strong>{usd(floor, 2)}</strong><small>grows to {usd(n(s.promised), 2)} by {new Date(Number(s.maturity) * 1000).toISOString().slice(0, 10)}</small></div>
               <div><span>Break distance</span><strong>{bd === null ? 'nothing in stock' : pct(bd)}</strong><small>the single drop in {sym ?? 'the stock'} that would touch the floor today</small></div>
               <div><span>Worst-case exit today</span><strong>{usd(floor, 2)}</strong><small>the floor's value now</small></div>
+            </div>
             </div>
             <dl className="sources">
               <div><dt>In {sym ?? 'stock'}</dt><dd>{usd(stockUsd, 2)} (target {usd(n(s.target), 2)}, multiplier {n(s.multiplier)} of cap {n(s.cap)})</dd></div>
@@ -68,8 +72,8 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
       {log && (log.length === 0 ? <p className="muted">No actions yet.</p> : (
         <ol className="log">
           {log.map((r) => (
-            <li key={r.tx + r.event}>
-              <span>{r.event}</span> {r.detail} <a href={`${BSCSCAN}/tx/${r.tx}`}>{short(r.tx)}</a>
+            <li key={r.tx + r.event + (r as LogRow & { logIndex?: number }).logIndex}>
+              <span className="ev">{r.event}</span> <span className="det">{r.detail}</span> <a href={`${BSCSCAN}/tx/${r.tx}`}>{short(r.tx)}</a> <span className="blk">block {r.block}</span>
             </li>
           ))}
         </ol>
