@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/token/ERC20/IERC20.sol";
+import {Math} from "@openzeppelin/utils/math/Math.sol";
 import {PlinthFactory} from "../src/PlinthFactory.sol";
 import {PlinthVault} from "../src/PlinthVault.sol";
 import {IResilientOracle, IUniV3Router02} from "../src/interfaces/External.sol";
@@ -36,6 +37,12 @@ contract ReplayLabTest is Test {
     uint256 nvdaId;
     uint256 p0; // Venus's NVDA price at the fork block
 
+    struct Bank {
+        uint256 stock;
+        uint256 safe;
+        uint256 lastFloor;
+    }
+
     struct Row {
         uint256 total;
         uint256 floor;
@@ -63,6 +70,15 @@ contract ReplayLabTest is Test {
         vm.prank(owner);
         nvdaId = factory.addStock(C.nvda(5.7e18));
         p0 = IResilientOracle(C.VENUS_ORACLE).getPrice(C.NVDA);
+        // On a fork the price feeds never update, so after the replay skips ahead hours or days Venus would
+        // call USDT's feed stale and the health gate would (rightly) pull out. Live, the feed updates every
+        // few minutes; hold USDT at its fork-block price so the gate judges the market, not the fork.
+        uint256 usdtPrice = IResilientOracle(C.VENUS_ORACLE).getPrice(C.USDT);
+        vm.mockCall(
+            C.VENUS_ORACLE,
+            abi.encodeWithSelector(IResilientOracle.getPrice.selector, C.USDT),
+            abi.encode(usdtPrice)
+        );
     }
 
     function test_replay_nvda_2018_11() public {
@@ -95,20 +111,22 @@ contract ReplayLabTest is Test {
         Row[] memory rows = new Row[](n);
         PlinthVault.Status memory s = v.status();
         // The bank desk starts from the same money and floor, at multiplier 5.
-        uint256 bankStock = _min(_cushion(s.total, s.floor) * BANK_M / 1e18, s.total);
-        uint256 bankSafe = s.total - bankStock;
-        uint256 lastFloor = s.floor;
-        rows[0] = Row(s.total, s.floor, s.stockUsd, v.multiplier(), s.total, bankStock, s.price);
+        Bank memory b;
+        b.stock = _min(_cushion(s.total, s.floor) * BANK_M / 1e18, s.total);
+        b.safe = s.total - b.stock;
+        b.lastFloor = s.floor;
+        rows[0] = Row(s.total, s.floor, s.stockUsd, v.multiplier(), s.total, b.stock, s.price);
 
-        uint256 t0 = block.timestamp;
+        // vm.getBlockTimestamp, not block.timestamp: under via_ir a saved block.timestamp is re-read after warp.
+        uint256 t0 = vm.getBlockTimestamp();
         for (uint256 k = 1; k < n; k++) {
             uint256 dt = at[k] - at[k - 1];
             vm.warp(t0 + at[k] - at[0]);
-            vm.roll(block.number + dt / 3);
+            vm.roll(vm.getBlockNumber() + dt / 3);
 
             uint256 price = p0 * px[k] / 1e18;
             _setPrice(price);
-            bankStock = bankStock * px[k] / px[k - 1];
+            b.stock = b.stock * px[k] / px[k - 1];
 
             if (ms[k] != v.multiplier()) {
                 vm.prank(keeper);
@@ -117,15 +135,8 @@ contract ReplayLabTest is Test {
             try v.rebalance() {} catch {}
 
             s = v.status();
-            // The bank's safe leg earns what the floor earns, so both sides face the same rate.
-            bankSafe = bankSafe * s.floor / lastFloor;
-            lastFloor = s.floor;
-            if (isClose[k] == 1) {
-                uint256 bt = bankStock + bankSafe;
-                bankStock = _min(_cushion(bt, s.floor) * BANK_M / 1e18, bt);
-                bankSafe = bt - bankStock;
-            }
-            rows[k] = Row(s.total, s.floor, s.stockUsd, v.multiplier(), bankStock + bankSafe, bankStock, s.price);
+            _bankStep(b, s.floor, isClose[k] == 1);
+            rows[k] = Row(s.total, s.floor, s.stockUsd, v.multiplier(), b.stock + b.safe, b.stock, s.price);
         }
         _write(name, at, rows);
     }
@@ -134,8 +145,17 @@ contract ReplayLabTest is Test {
 
     /// Venus's price for NVDA, and the real Uniswap pool traded to within 0.2% of it.
     function _setPrice(uint256 price) internal {
+        // Moving the pool is test plumbing; keep its gas out of the test's budget.
+        vm.pauseGasMetering();
+        _movePool(price);
+        vm.resumeGasMetering();
+    }
+
+    function _movePool(uint256 price) internal {
         vm.mockCall(
-            C.VENUS_ORACLE, abi.encodeWithSelector(IResilientOracle.getPrice.selector, C.NVDA), abi.encode(price)
+            C.VENUS_ORACLE,
+            abi.encodeWithSelector(IResilientOracle.getPrice.selector, C.NVDA),
+            abi.encode(price)
         );
         uint256 spot = _spot();
         if (spot * 1000 > price * 998 && spot * 1000 < price * 1002) return;
@@ -161,20 +181,34 @@ contract ReplayLabTest is Test {
         deal(tokenIn, mover, amountIn);
         vm.startPrank(mover);
         IERC20(tokenIn).approve(C.UNI_ROUTER, amountIn);
-        IUniV3Router02(C.UNI_ROUTER).exactInputSingle(
-            IUniV3Router02.ExactInputSingleParams(tokenIn, tokenOut, 500, mover, amountIn, 0, 0)
-        );
+        IUniV3Router02(C.UNI_ROUTER)
+            .exactInputSingle(
+                IUniV3Router02.ExactInputSingleParams(tokenIn, tokenOut, 500, mover, amountIn, 0, 0)
+            );
         vm.stopPrank();
     }
 
     /// USDT per NVDA from the pool's current price, WAD.
     function _spot() internal view returns (uint256) {
         (uint160 sqrtP,,,,,,) = IPoolSlot0(C.NVDA_POOL).slot0();
-        uint256 p = ((uint256(sqrtP) * uint256(sqrtP)) >> 96) * 1e18 >> 96; // token1 per token0
-        return IPoolSlot0(C.NVDA_POOL).token0() == C.NVDA ? p : 1e36 / p;
+        // token1 per token0. mulDiv keeps extreme prices (hit while searching for a trade size) in range.
+        uint256 p = Math.mulDiv(Math.mulDiv(sqrtP, sqrtP, 1 << 96), 1e18, 1 << 96);
+        if (IPoolSlot0(C.NVDA_POOL).token0() == C.NVDA) return p;
+        return p == 0 ? type(uint256).max : 1e36 / p;
     }
 
     // ------------------------------------------------------------ helpers
+
+    /// The bank's safe leg earns what the floor earns, so both sides face the same rate. It rebalances
+    /// only at the close.
+    function _bankStep(Bank memory b, uint256 floor_, bool close) internal pure {
+        b.safe = b.safe * floor_ / b.lastFloor;
+        b.lastFloor = floor_;
+        if (!close) return;
+        uint256 t = b.stock + b.safe;
+        b.stock = _min(_cushion(t, floor_) * BANK_M / 1e18, t);
+        b.safe = t - b.stock;
+    }
 
     function _cushion(uint256 total, uint256 floor_) internal pure returns (uint256) {
         return total > floor_ ? total - floor_ : 0;
@@ -187,7 +221,9 @@ contract ReplayLabTest is Test {
     function _write(string memory name, uint256[] memory at, Row[] memory rows) internal {
         uint256 n = rows.length;
         uint256[][] memory cols = new uint256[][](7);
-        for (uint256 c = 0; c < 7; c++) cols[c] = new uint256[](n);
+        for (uint256 c = 0; c < 7; c++) {
+            cols[c] = new uint256[](n);
+        }
         bool plinthBelow;
         bool bankBelow;
         for (uint256 k = 0; k < n; k++) {
@@ -217,5 +253,7 @@ contract ReplayLabTest is Test {
         emit log_named_decimal_uint("floor end", rows[n - 1].floor, 18);
         emit log_named_string("plinth ever below floor", plinthBelow ? "yes" : "no");
         emit log_named_string("bank ever below floor", bankBelow ? "yes" : "no");
+        // The claim under test: with the keeper's real policy, Plinth stays above its floor on these paths.
+        assertFalse(plinthBelow, "Plinth went below its floor");
     }
 }
