@@ -101,20 +101,25 @@ export function Front() {
         <div className="calc card" id="start">
           <p className="sentence">
             Put{' '}
-            <span className="field money">$<input aria-label="Amount in USDT" type="number" min={10} step={10} value={amount} onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))} /></span>{' '}
+            <span className="field money">$<input aria-label="Amount in USDT" type="number" min={0} step="any" value={amount} onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))} /></span>{' '}
             into{' '}
             <span className="field">
               <select aria-label="Stock" value={sym} onChange={(e) => setSym(e.target.value)}>
                 {(live?.stocks ?? [{ sym: 'NVDA' }]).map((s) => <option key={s.sym} value={s.sym}>{NAMES[s.sym] ?? s.sym}</option>)}
               </select>
             </span>{' '}
-            and{' '}
-            <span className="field">
-              <select aria-label="Floor" value={bps} onChange={(e) => setBps(Number(e.target.value))}>
-                {FLOORS.map((f) => <option key={f.bps} value={f.bps}>{f.label}</option>)}
-              </select>
-            </span>
+            and get <span className="field">{bps / 100}%</span> back
           </p>
+          <div className="floor-slider">
+            <span className="muted">More upside</span>
+            <input
+              type="range" min={9000} max={10000} step={500} value={bps} aria-label="How much you get back at 12 months"
+              onChange={(e) => setBps(Number(e.target.value))}
+              style={{ ['--p' as string]: `${(bps - 9000) / 10}%` }}
+            />
+            <span className="muted">More protection</span>
+            <div className="ticks">{[...FLOORS].reverse().map((f) => <button key={f.bps} className={bps === f.bps ? 'on' : ''} onClick={() => setBps(f.bps)}>{f.bps / 100}%</button>)}</div>
+          </div>
           {error && <p className="fail">Could not read BSC right now: {error}. Nothing is shown rather than a guess.</p>}
           {!error && !calc && <p className="muted">Reading live rates and caps from BSC…</p>}
           {calc && (
@@ -124,7 +129,7 @@ export function Front() {
               <div className="stat"><span>Worst exit today</span><strong><CountUp value={calc.floor} format={(x) => usd(x)} /></strong></div>
             </div>
           )}
-          {calc && <Deposit stockId={stock?.id} bps={bps} amount={amount} name={name} />}
+          {calc && <Deposit stockId={stock?.id} bps={bps} amount={amount} name={name} onAmount={setAmount} />}
         </div>
       </section>
 
@@ -262,14 +267,33 @@ export function Front() {
 
 function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo: number; bHi: number }) {
   const [ref, p] = useScrollProgress<HTMLElement>();
+  const [last, setLast] = useState<string | null>(null);
+  useEffect(() => {
+    fetch(`https://plinth-relay.vercel.app/api/vault-log?vault=${DEMO_VAULT}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setLast(d?.rows?.[0] ? d.rows[0].detail.split(';')[0] : 'history unavailable'))
+      .catch(() => setLast('history unavailable'));
+  }, []);
   const n = (x: bigint) => Number(x) / 1e18;
-  const rise = (1 - Math.min(1, p * 1.6)) * 120; // devices settle as the stage scrolls in
+  const rise = (1 - Math.min(1, p * 1.6)) * 140; // devices settle as the stage scrolls in
+  const grow = Math.min(1, p * 2.2);
+  const bd = v && v.breakDistance < 10n ** 30n ? n(v.breakDistance) : null;
+  const gain = v ? n(v.total) - n(v.deposited) : 0;
+  const Bars = ({ every = 1 }: { every?: number }) => (
+    <div className="bars">
+      {bars.filter((_, k) => k % every === 0).map((b, k) => <span key={k} style={{ height: `${((b - bLo) / (bHi - bLo)) * 100}%`, transform: `scaleY(${grow})` }} />)}
+    </div>
+  );
   return (
     <section className="stage" ref={ref}>
       <div className="stage-word" style={{ transform: `translateY(${(0.55 - p) * 60}%)` }} aria-hidden>plinth</div>
       <div className="laptop" style={{ transform: `translateY(${rise}px)` }}>
         <div className="laptop-screen">
-          <div className="device-bar"><span className="logo-dot" /> Plinth <span className="muted">live vault {short(DEMO_VAULT)}</span></div>
+          <div className="app-bar">
+            <span className="brand-sm"><span className="logo-dot" /> plinth</span>
+            <span className="tabs"><b>Overview</b><span>Actions</span><span>Proof</span></span>
+            <span className="muted mono">{short(DEMO_VAULT)}</span>
+          </div>
           <div className="laptop-grid">
             <div>
               <p className="device-label">Value now</p>
@@ -282,23 +306,35 @@ function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo:
                 </div>
               )}
             </div>
-            <div>
-              <p className="device-label">Replay · Nvidia, Nov 2018 · value above the floor</p>
-              <div className="bars">
-                {bars.map((b, k) => <span key={k} style={{ height: `${((b - bLo) / (bHi - bLo)) * 100}%`, transform: `scaleY(${Math.min(1, p * 2.2)})` }} />)}
-              </div>
+            <div className="tile-row">
+              <div className="tile"><span>Break distance</span><b>{bd === null ? '–' : pct(bd)}</b></div>
+              <div className="tile"><span>Multiplier</span><b>{v ? n(v.multiplier) : '–'}</b></div>
+              <div className="tile dark"><span>Safe leg</span><b>{v ? pct(n(v.floorRate), 2) : '–'}</b></div>
             </div>
           </div>
+          <p className="device-label">Replay · Nvidia, Nov 2018 · value above the floor at each step</p>
+          <Bars />
         </div>
         <div className="laptop-base" />
       </div>
-      <div className="phone" style={{ transform: `translateY(${rise * 1.6}px)` }}>
+
+      <div className="phone" style={{ transform: `translateY(${rise * 1.7}px)` }}>
         <div className="phone-notch" />
-        <p className="device-label">Break distance</p>
-        <p className="device-big small">{v && v.breakDistance < 10n ** 30n ? <CountUp value={n(v.breakDistance) * 100} format={(x) => x.toFixed(1) + '%'} /> : '–'}</p>
-        <p className="device-label">Multiplier</p>
-        <p className="device-big small">{v ? n(v.multiplier) : '–'}</p>
-        <a className="pill dark" href="/demo">Open →</a>
+        <div className="phone-screen">
+          <div className="phone-top"><span className="brand-sm"><span className="logo-dot" /> Nvidia vault</span><span className="live-pill"><i className="live-dot" /> live</span></div>
+          <p className="device-label">Value now</p>
+          <p className="phone-big">{v ? <CountUp value={n(v.total)} format={(x) => usd(x, 2)} /> : '…'}</p>
+          {v && <p className={`delta ${gain >= 0 ? 'up' : 'down'}`}>{gain >= 0 ? '+' : '−'}{usd(Math.abs(gain), 2)} since you opened it</p>}
+          <div className="phone-chart"><Bars every={2} /></div>
+          <div className="phone-tiles">
+            <div className="tile"><span>Floor</span><b>{v ? usd(n(v.floor), 2) : '–'}</b></div>
+            <div className="tile yellow"><span>In Nvidia</span><b>{v ? usd(n(v.stockUsd), 2) : '–'}</b></div>
+            <div className="tile red"><span>Break distance</span><b>{bd === null ? '–' : pct(bd)}</b></div>
+            <div className="tile dark"><span>Multiplier</span><b>{v ? n(v.multiplier) : '–'}</b></div>
+          </div>
+          <div className="phone-row"><span className="muted">Keeper, last action</span><b>{last ?? 'reading…'}</b></div>
+          <a className="pill dark" href="/demo">Open the live vault →</a>
+        </div>
       </div>
     </section>
   );

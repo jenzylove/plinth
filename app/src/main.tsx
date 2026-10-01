@@ -5,6 +5,19 @@ import { Front } from './pages/Front';
 import { VaultPage } from './pages/Vault';
 import { Proof } from './pages/Proof';
 import { DEMO_VAULT } from './chain';
+import { connect, useAccount } from './account';
+import { hasWallet } from './wallet';
+import { short } from './format';
+
+function WalletButton() {
+  const { account, connecting } = useAccount();
+  if (account) return <a className="pill light nav-cta" href="/#start"><i className="live-dot" /> {short(account)}</a>;
+  return (
+    <button className="pill light nav-cta" disabled={connecting} onClick={() => (hasWallet() ? connect() : document.getElementById('start')?.scrollIntoView({ behavior: 'smooth' }))}>
+      {connecting ? 'Connecting…' : 'Connect wallet'}
+    </button>
+  );
+}
 
 function route() {
   const p = location.pathname.replace(/\/$/, '');
@@ -24,7 +37,7 @@ createRoot(document.getElementById('root')!).render(
         <a href="/demo">Live vault</a>
         <a href="/proof">Proof</a>
       </nav>
-      <a href="/#start" className="pill light nav-cta">Start saving</a>
+      <WalletButton />
     </header>
     <main>{route()}</main>
   </StrictMode>,
