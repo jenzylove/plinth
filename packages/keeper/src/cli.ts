@@ -4,7 +4,8 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { Keeper } from './keeper.js';
 
-const FACTORY = '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f';
+// The live factory. PLINTH_FACTORY overrides it (v1 was 0x57AB13A70d0BC7983196014b86D632eCAfD4b96f).
+const FACTORY = (process.env.PLINTH_FACTORY ?? '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f') as `0x${string}`;
 const RELAY = 'https://plinth-relay.vercel.app';
 
 const rpcUrl = process.env.BSC_RPC_URL ?? process.env.BSC_ARCHIVE_RPC_URL;

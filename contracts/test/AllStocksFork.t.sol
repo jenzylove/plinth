@@ -19,7 +19,7 @@ contract AllStocksForkTest is Test {
         assertEq(list.length, 20);
         PlinthFactory f = new PlinthFactory(
             address(this), C.USDT, IResilientOracle(C.VENUS_ORACLE), C.markets(), C.gate(),
-            0.06e18, 365 days, address(1), C.VENUS_BLOCKS_PER_YEAR, 1e18
+            0.06e18, 365 days, address(1), C.VENUS_BLOCKS_PER_YEAR, 1e18, 1e18
         );
         address saver = makeAddr("saver");
         for (uint256 i; i < list.length; i++) {

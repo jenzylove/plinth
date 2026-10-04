@@ -7,26 +7,64 @@ import {FixedPointMathLib as FPM} from "solady/utils/FixedPointMathLib.sol";
 import {IResilientOracle, IUniV3Pool, IPancakeV3Router, IUniV3Router02} from "../interfaces/External.sol";
 import {StockConfig} from "./Types.sol";
 
-/// The stock leg: a reference price that a single trade cannot move, and swaps that refuse to fill
-/// worse than that price minus the allowed slippage. Runs in the vault's context.
+/// The stock leg: a price that a single trade cannot move, and swaps that refuse to fill worse than that
+/// price minus the allowed slippage. Runs in the vault's context.
 library StockLeg {
     using SafeERC20 for IERC20;
 
     uint256 internal constant WAD = 1e18;
     int256 internal constant LN_TICK_BASE = 99995000333308; // ln(1.0001) in WAD
 
-    /// USDT per bStock, WAD. Venus's oracle when the stock has a Venus feed, otherwise the pool's
-    /// time-weighted average price over `twapWindow` seconds.
+    /// The slow reference: Venus's oracle when the stock has a Venus feed, otherwise the pool's TWAP over
+    /// `twapWindow` seconds. USDT per bStock, WAD.
     function refPrice(StockConfig memory s, address usdt, IResilientOracle oracle) internal view returns (uint256) {
         if (s.venusPriced) return oracle.getPrice(s.token);
-        return twap(s, usdt);
+        return twap(s, usdt, s.twapWindow);
     }
 
-    function twap(StockConfig memory s, address usdt) internal view returns (uint256) {
+    /// The fast reference: the pool's TWAP over `fastWindow` seconds. It follows a crash within about a
+    /// minute while still taking a minute of real trading to move. Falls back to the slow reference if the
+    /// pool cannot answer.
+    function fastPrice(StockConfig memory s, address usdt, uint256 slow) internal view returns (uint256) {
         uint32[] memory ago = new uint32[](2);
-        ago[0] = s.twapWindow;
+        ago[0] = s.fastWindow;
+        try IUniV3Pool(s.pool).observe(ago) returns (int56[] memory cum, uint160[] memory) {
+            return _tickPrice(s, usdt, cum, s.fastWindow);
+        } catch {
+            return slow;
+        }
+    }
+
+    /// The price the vault values and trades at: the lower of the slow and fast references.
+    /// - In a crash the fast reference drops first, so the vault marks itself down and its sells fill.
+    /// - In a spike the slow reference stays lower, so the vault does not chase it with buys.
+    /// - Pushing the pool up cannot raise it; pushing it down takes a minute of trading against arbitrage.
+    function mark(StockConfig memory s, address usdt, IResilientOracle oracle)
+        internal
+        view
+        returns (uint256 price, uint256 slow, uint256 fast)
+    {
+        slow = refPrice(s, usdt, oracle);
+        fast = fastPrice(s, usdt, slow);
+        price = fast < slow ? fast : slow;
+    }
+
+    function twap(StockConfig memory s, address usdt, uint32 window) internal view returns (uint256) {
+        uint32[] memory ago = new uint32[](2);
+        ago[0] = window;
         (int56[] memory cum,) = IUniV3Pool(s.pool).observe(ago);
-        int256 avgTick = int256(cum[1] - cum[0]) / int256(uint256(s.twapWindow));
+        return _tickPrice(s, usdt, cum, window);
+    }
+
+    function _tickPrice(StockConfig memory s, address usdt, int56[] memory cum, uint32 window)
+        private
+        view
+        returns (uint256)
+    {
+        int256 delta = int256(cum[1] - cum[0]);
+        int256 avgTick = delta / int256(uint256(window));
+        // Round toward negative infinity, like Uniswap's OracleLibrary.
+        if (delta < 0 && delta % int256(uint256(window)) != 0) avgTick--;
         // Price of token1 in token0 is 1.0001^tick. Both tokens have 18 decimals.
         bool stockIsToken0 = IUniV3Pool(s.pool).token0() == s.token;
         require(stockIsToken0 || IUniV3Pool(s.pool).token0() == usdt, "pool pair");

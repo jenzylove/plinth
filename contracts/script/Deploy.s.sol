@@ -9,21 +9,30 @@ import {BscConfig as C} from "./BscConfig.sol";
 
 /// Deploys the factory and lists every stock in data/stocks.json (pools and calibrated caps).
 ///   forge script script/Deploy.s.sol --rpc-url bsc --broadcast --verify
-/// Env: KEEPER (keeper address). The deployer becomes the owner.
+/// Env: KEEPER (keeper address), OWNER (final owner; it must call acceptOwnership). The deployer lists the
+/// stocks, then hands ownership over.
 contract Deploy is Script {
     uint256 constant MAX_FLOOR_RATE = 0.06e18;
     uint256 constant TERM = 365 days;
     uint256 constant MIN_TRADE = 1e18; // $1
+    uint256 constant MIN_OPEN = 1e18; // $1
+    uint32 constant FAST_WINDOW = 60; // seconds: follows a crash within a minute
+    // Every listed stock passed "a $10k sell costs at most 1.3%" (docs/RESEARCH.md), so one trade is at most
+    // $10k and a vault is at most five trades of stock: $50k.
+    uint128 constant MAX_TRADE = 10_000e18;
+    uint128 constant MAX_VAULT = 50_000e18;
 
     function run() external returns (PlinthFactory factory) {
         address keeper = vm.envAddress("KEEPER");
+        address owner = vm.envAddress("OWNER");
         vm.startBroadcast();
         factory = new PlinthFactory(
             msg.sender, C.USDT, IResilientOracle(C.VENUS_ORACLE), C.markets(), C.gate(),
-            MAX_FLOOR_RATE, TERM, keeper, C.VENUS_BLOCKS_PER_YEAR, MIN_TRADE
+            MAX_FLOOR_RATE, TERM, keeper, C.VENUS_BLOCKS_PER_YEAR, MIN_TRADE, MIN_OPEN
         );
         StockConfig[] memory list = stocks();
         for (uint256 i; i < list.length; i++) factory.addStock(list[i]);
+        if (owner != msg.sender) factory.transferOwnership(owner);
         vm.stopBroadcast();
         console.log("factory", address(factory));
         console.log("stocks", list.length);
@@ -51,7 +60,10 @@ contract Deploy is Script {
                 cap: uint64(cap),
                 band: 0.1e18,
                 // Allowed slippage against the reference price: the pool fee plus a margin.
-                maxSlippage: fee >= 2500 ? 0.015e18 : 0.01e18
+                maxSlippage: fee >= 2500 ? 0.015e18 : 0.01e18,
+                fastWindow: FAST_WINDOW,
+                maxTrade: MAX_TRADE,
+                maxVault: MAX_VAULT
             });
         }
     }

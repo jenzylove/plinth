@@ -34,8 +34,11 @@ interface IVenusEnter {
 /// is set to the path and the real Uniswap pool is traded to the same price, so the vault's own swaps
 /// run against real liquidity. The multiplier at each step comes from the keeper's real policy.
 ///
-/// Plinth rebalances at every step (its keeper runs around the clock); a bank desk with multiplier 5
-/// rebalances once a day at the close, on the same floor and the same safe-leg growth, with no costs.
+/// Plinth rebalances at every step (its keeper runs around the clock). Two bank desks rebalance once a
+/// day at the close, on the same floor and the same safe-leg growth, with no costs: one at a fixed
+/// multiplier 5, and one that makes the same event cuts as Plinth's keeper, applied at full size at once
+/// (Plinth must raise back one step per four hours, so this desk gets the better deal). The second desk
+/// isolates what event cuts are worth from what trading around the clock is worth.
 /// Nobody can trade through an overnight gap. Writes data/replay-<name>.json. Needs BSC_ARCHIVE_RPC_URL.
 contract ReplayLabTest is Test {
     uint256 constant FORK_BLOCK = 124_954_313; // 2026-09-30 18:11 UTC
@@ -63,6 +66,7 @@ contract ReplayLabTest is Test {
         uint256 bankTotal;
         uint256 bankStock;
         uint256 price;
+        uint256 cutTotal;
     }
 
     function setUp() public {
@@ -77,6 +81,7 @@ contract ReplayLabTest is Test {
             365 days,
             keeper,
             C.VENUS_BLOCKS_PER_YEAR,
+            1e18,
             1e18
         );
         vm.prank(owner);
@@ -127,7 +132,12 @@ contract ReplayLabTest is Test {
         b.stock = _min(_cushion(s.total, s.floor) * BANK_M / 1e18, s.total);
         b.safe = s.total - b.stock;
         b.lastFloor = s.floor;
-        rows[0] = Row(s.total, s.floor, s.stockUsd, v.multiplier(), s.total, b.stock, s.price);
+        // The second desk starts at the keeper's first multiplier and follows its cuts.
+        Bank memory c;
+        c.stock = _min(_cushion(s.total, s.floor) * ms[0] / 1e18, s.total);
+        c.safe = s.total - c.stock;
+        c.lastFloor = s.floor;
+        rows[0] = Row(s.total, s.floor, s.stockUsd, v.multiplier(), s.total, b.stock, s.price, s.total);
 
         // vm.getBlockTimestamp, not block.timestamp: under via_ir a saved block.timestamp is re-read after warp.
         uint256 t0 = vm.getBlockTimestamp();
@@ -139,16 +149,25 @@ contract ReplayLabTest is Test {
             uint256 price = p0 * px[k] / 1e18;
             _setPrice(price);
             b.stock = b.stock * px[k] / px[k - 1];
+            c.stock = c.stock * px[k] / px[k - 1];
 
-            if (ms[k] != v.multiplier()) {
+            // The keeper cuts at once and raises back one step per four hours, as the contract allows.
+            uint256 cur = v.multiplier();
+            if (ms[k] < cur) {
                 vm.prank(keeper);
                 v.setMultiplier(ms[k]);
+            } else if (ms[k] > cur && vm.getBlockTimestamp() >= v.lastRaiseAt() + v.RAISE_INTERVAL()) {
+                vm.prank(keeper);
+                v.setMultiplier(_min(ms[k], cur + v.RAISE_STEP()));
             }
             try v.rebalance() {} catch {}
 
             s = v.status();
-            _bankStep(b, s.floor, isClose[k] == 1);
-            rows[k] = Row(s.total, s.floor, s.stockUsd, v.multiplier(), b.stock + b.safe, b.stock, s.price);
+            _bankStep(b, s.floor, isClose[k] == 1, BANK_M);
+            _bankStep(c, s.floor, isClose[k] == 1, ms[k]);
+            rows[k] = Row(
+                s.total, s.floor, s.stockUsd, v.multiplier(), b.stock + b.safe, b.stock, s.price, c.stock + c.safe
+            );
         }
         _write(name, at, rows);
     }
@@ -291,12 +310,12 @@ contract ReplayLabTest is Test {
 
     /// The bank's safe leg earns what the floor earns, so both sides face the same rate. It rebalances
     /// only at the close.
-    function _bankStep(Bank memory b, uint256 floor_, bool close) internal pure {
+    function _bankStep(Bank memory b, uint256 floor_, bool close, uint256 m) internal pure {
         b.safe = b.safe * floor_ / b.lastFloor;
         b.lastFloor = floor_;
         if (!close) return;
         uint256 t = b.stock + b.safe;
-        b.stock = _min(_cushion(t, floor_) * BANK_M / 1e18, t);
+        b.stock = _min(_cushion(t, floor_) * m / 1e18, t);
         b.safe = t - b.stock;
     }
 
@@ -310,18 +329,20 @@ contract ReplayLabTest is Test {
 
     function _write(string memory name, uint256[] memory at, Row[] memory rows) internal {
         uint256 n = rows.length;
-        uint256[][] memory cols = new uint256[][](7);
-        for (uint256 c = 0; c < 7; c++) {
+        uint256[][] memory cols = new uint256[][](8);
+        for (uint256 c = 0; c < 8; c++) {
             cols[c] = new uint256[](n);
         }
         bool plinthBelow;
         bool bankBelow;
+        bool cutBelow;
         for (uint256 k = 0; k < n; k++) {
             Row memory r = rows[k];
             (cols[0][k], cols[1][k], cols[2][k], cols[3][k]) = (r.total, r.floor, r.stockUsd, r.multiplier);
-            (cols[4][k], cols[5][k], cols[6][k]) = (r.bankTotal, r.bankStock, r.price);
+            (cols[4][k], cols[5][k], cols[6][k], cols[7][k]) = (r.bankTotal, r.bankStock, r.price, r.cutTotal);
             if (r.total < r.floor) plinthBelow = true;
             if (r.bankTotal < r.floor) bankBelow = true;
+            if (r.cutTotal < r.floor) cutBelow = true;
         }
         string memory o = name;
         vm.serializeString(o, "name", name);
@@ -335,6 +356,8 @@ contract ReplayLabTest is Test {
         vm.serializeUint(o, "bankStock", cols[5]);
         vm.serializeBool(o, "plinthEverBelowFloor", plinthBelow);
         vm.serializeBool(o, "bankEverBelowFloor", bankBelow);
+        vm.serializeUint(o, "bankCutTotal", cols[7]);
+        vm.serializeBool(o, "bankCutEverBelowFloor", cutBelow);
         string memory out = vm.serializeUint(o, "nvdaPrice", cols[6]);
         vm.writeJson(out, string.concat("../data/replay-", name, ".json"));
 
@@ -343,6 +366,8 @@ contract ReplayLabTest is Test {
         emit log_named_decimal_uint("floor end", rows[n - 1].floor, 18);
         emit log_named_string("plinth ever below floor", plinthBelow ? "yes" : "no");
         emit log_named_string("bank ever below floor", bankBelow ? "yes" : "no");
+        emit log_named_decimal_uint("bank with cuts end", rows[n - 1].cutTotal, 18);
+        emit log_named_string("bank with cuts ever below floor", cutBelow ? "yes" : "no");
         // The claim under test: with the keeper's real policy, Plinth stays above its floor on these paths.
         assertFalse(plinthBelow, "Plinth went below its floor");
     }

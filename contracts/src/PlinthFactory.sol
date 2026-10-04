@@ -15,14 +15,17 @@ import {StockConfig, Market, MarketKind, GateLimits} from "./lib/Types.sol";
 /// the price oracle, the lending markets, the health gate limits, the most the floor may assume the safe
 /// leg earns, and the multiplier ceiling. A vault copies its stock's routing at open and never changes it.
 ///
-/// The owner can add stocks for new vaults, lower or restore caps (never above MAX_CAP, and an open
-/// vault never goes above the cap it opened with), disable markets or stocks, and replace the keeper.
+/// The owner can add stocks for new vaults, disable markets or stocks, and lower caps at once. Anything that
+/// adds risk to open vaults waits CHANGE_DELAY in public first: a new keeper, or a cap raised back up (never
+/// above MAX_CAP, and an open vault never goes above the cap it opened with). Removing the keeper is instant;
+/// vaults then keep their multiplier and anyone can still rebalance them.
 contract PlinthFactory is Ownable2Step {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_CAP = 6e18;
     uint256 public constant MAX_BAND = 0.5e18;
     uint256 public constant MAX_SLIPPAGE = 0.05e18;
+    uint256 public constant CHANGE_DELAY = 1 days;
 
     address public immutable usdt;
     IResilientOracle public immutable oracle;
@@ -40,6 +43,12 @@ contract PlinthFactory is Ownable2Step {
     address public keeper;
     uint256 public venusBlocksPerYear;
     uint256 public minTrade; // USDT, smallest trade worth making
+    uint256 public minOpen; // USDT, smallest first deposit
+
+    address public pendingKeeper;
+    uint256 public pendingKeeperAt; // when pendingKeeper may take over
+    mapping(uint256 => uint256) public pendingCap; // stockId => queued higher cap
+    mapping(uint256 => uint256) public pendingCapAt; // stockId => when it may apply
 
     address[] public vaults;
     mapping(address => address[]) internal _vaultsOf;
@@ -52,10 +61,15 @@ contract PlinthFactory is Ownable2Step {
     event KeeperSet(address keeper);
     event VenusBlocksPerYearSet(uint256 blocks);
     event MinTradeSet(uint256 minTrade);
+    event MinOpenSet(uint256 minOpen);
+    event KeeperProposed(address keeper, uint256 at);
+    event CapProposed(uint256 indexed stockId, uint256 cap, uint256 at);
 
     error BadConfig();
     error StockOff();
     error BadPromise();
+    error BadAmount();
+    error TooEarly();
 
     constructor(
         address owner_,
@@ -67,9 +81,10 @@ contract PlinthFactory is Ownable2Step {
         uint256 term_,
         address keeper_,
         uint256 venusBlocksPerYear_,
-        uint256 minTrade_
+        uint256 minTrade_,
+        uint256 minOpen_
     ) Ownable(owner_) {
-        if (maxFloorRate_ > 0.1e18 || term_ == 0 || minTrade_ == 0) revert BadConfig();
+        if (maxFloorRate_ > 0.1e18 || term_ == 0 || minTrade_ == 0 || minOpen_ == 0) revert BadConfig();
         if (gate_.minCashMultiple == 0 || gate_.maxUtilization > 1e18) revert BadConfig();
         usdt = usdt_;
         oracle = oracle_;
@@ -85,6 +100,7 @@ contract PlinthFactory is Ownable2Step {
         keeper = keeper_;
         venusBlocksPerYear = venusBlocksPerYear_;
         minTrade = minTrade_;
+        minOpen = minOpen_;
         implementation = address(new PlinthVault());
     }
 
@@ -95,6 +111,7 @@ contract PlinthFactory is Ownable2Step {
     function open(uint256 stockId, uint256 promiseBps, uint256 amount) external returns (address vault) {
         if (!stockEnabled[stockId]) revert StockOff();
         if (promiseBps != 10_000 && promiseBps != 9_500 && promiseBps != 9_000) revert BadPromise();
+        if (amount < minOpen || amount > _stocks[stockId].maxVault) revert BadAmount();
         vault = Clones.clone(implementation);
         PlinthVault(vault).initialize(msg.sender, stockId, _stocks[stockId], promiseBps, term);
         vaults.push(vault);
@@ -122,11 +139,28 @@ contract PlinthFactory is Ownable2Step {
         emit StockEnabled(id, on);
     }
 
-    /// Recalibrated cap. Applies to new vaults, and lowers (never raises) the cap of open vaults.
+    /// Recalibrated cap. A lower cap applies at once (to new vaults, and to open vaults' live cap). A higher
+    /// cap is queued and applies after CHANGE_DELAY with applyCap. Open vaults never exceed their cap at open.
     function setCap(uint256 id, uint256 cap_) external onlyOwner {
         if (id >= _stocks.length || cap_ > MAX_CAP) revert BadConfig();
-        _stocks[id].cap = uint64(cap_);
-        emit CapSet(id, cap_);
+        if (cap_ <= _stocks[id].cap) {
+            _stocks[id].cap = uint64(cap_);
+            delete pendingCapAt[id];
+            emit CapSet(id, cap_);
+        } else {
+            pendingCap[id] = cap_;
+            pendingCapAt[id] = block.timestamp + CHANGE_DELAY;
+            emit CapProposed(id, cap_, pendingCapAt[id]);
+        }
+    }
+
+    /// Apply a queued higher cap once its delay has passed. Anyone can call it.
+    function applyCap(uint256 id) external {
+        uint256 at = pendingCapAt[id];
+        if (at == 0 || block.timestamp < at) revert TooEarly();
+        _stocks[id].cap = uint64(pendingCap[id]);
+        delete pendingCapAt[id];
+        emit CapSet(id, pendingCap[id]);
     }
 
     function setMarketEnabled(uint256 i, bool on) external onlyOwner {
@@ -135,9 +169,26 @@ contract PlinthFactory is Ownable2Step {
         emit MarketEnabled(i, on);
     }
 
-    function setKeeper(address k) external onlyOwner {
-        keeper = k;
-        emit KeeperSet(k);
+    /// Queue a new keeper. It takes over after CHANGE_DELAY with acceptKeeper, so savers see it coming.
+    function proposeKeeper(address k) external onlyOwner {
+        pendingKeeper = k;
+        pendingKeeperAt = block.timestamp + CHANGE_DELAY;
+        emit KeeperProposed(k, pendingKeeperAt);
+    }
+
+    /// Install the queued keeper once its delay has passed. Anyone can call it.
+    function acceptKeeper() external {
+        if (pendingKeeperAt == 0 || block.timestamp < pendingKeeperAt) revert TooEarly();
+        keeper = pendingKeeper;
+        delete pendingKeeperAt;
+        emit KeeperSet(keeper);
+    }
+
+    /// Remove the keeper at once (for a lost or stolen key). Vaults keep working without it.
+    function removeKeeper() external onlyOwner {
+        keeper = address(0);
+        delete pendingKeeperAt;
+        emit KeeperSet(address(0));
     }
 
     /// BSC block time changes move Venus's per-block rate. The floor rate stays capped by maxFloorRate.
@@ -150,6 +201,12 @@ contract PlinthFactory is Ownable2Step {
         if (m == 0) revert BadConfig();
         minTrade = m;
         emit MinTradeSet(m);
+    }
+
+    function setMinOpen(uint256 m) external onlyOwner {
+        if (m == 0) revert BadConfig();
+        minOpen = m;
+        emit MinOpenSet(m);
     }
 
     // ---------------------------------------------------------------- views
@@ -191,5 +248,6 @@ contract PlinthFactory is Ownable2Step {
         if (s.token == address(0) || s.pool == address(0) || s.router == address(0)) revert BadConfig();
         if (s.cap > MAX_CAP || s.band == 0 || s.band > MAX_BAND || s.maxSlippage > MAX_SLIPPAGE) revert BadConfig();
         if (!s.venusPriced && s.twapWindow < 60) revert BadConfig();
+        if (s.fastWindow < 30 || s.fastWindow > 600 || s.maxTrade == 0 || s.maxVault == 0) revert BadConfig();
     }
 }

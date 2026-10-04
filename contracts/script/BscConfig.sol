@@ -36,14 +36,14 @@ library BscConfig {
     }
 
     function nvda(uint64 cap) internal pure returns (StockConfig memory) {
-        return StockConfig(NVDA, NVDA_POOL, UNI_ROUTER, 500, false, true, 0, cap, 0.1e18, 0.01e18);
+        return StockConfig(NVDA, NVDA_POOL, UNI_ROUTER, 500, false, true, 0, cap, 0.1e18, 0.01e18, 60, 10_000e18, 50_000e18);
     }
 
     function qqq(uint64 cap) internal pure returns (StockConfig memory) {
-        return StockConfig(QQQ, QQQ_POOL, PCS_ROUTER, 100, true, false, 600, cap, 0.1e18, 0.01e18);
+        return StockConfig(QQQ, QQQ_POOL, PCS_ROUTER, 100, true, false, 600, cap, 0.1e18, 0.01e18, 60, 10_000e18, 50_000e18);
     }
 
     function tsla(uint64 cap) internal pure returns (StockConfig memory) {
-        return StockConfig(TSLA, TSLA_POOL, PCS_ROUTER, 2500, true, true, 0, cap, 0.1e18, 0.015e18);
+        return StockConfig(TSLA, TSLA_POOL, PCS_ROUTER, 2500, true, true, 0, cap, 0.1e18, 0.015e18, 60, 10_000e18, 50_000e18);
     }
 }

@@ -13,6 +13,9 @@ struct StockConfig {
     uint64 cap; // highest multiplier allowed, WAD (from 10y calibration, max 6)
     uint64 band; // rebalance band, WAD fraction of target (0.1e18 = 10%)
     uint64 maxSlippage; // worst price accepted against the reference, WAD fraction
+    uint32 fastWindow; // seconds of pool TWAP that marks the stock down fast in a crash (30 to 600)
+    uint128 maxTrade; // USDT, the largest single trade; bigger moves happen over several calls
+    uint128 maxVault; // USDT, the most one vault may take in deposits for this stock
 }
 
 enum MarketKind {

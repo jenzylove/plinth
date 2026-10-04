@@ -8,6 +8,7 @@ import {PlinthVault} from "../src/PlinthVault.sol";
 import {IResilientOracle, IVToken, IPancakeV3Router} from "../src/interfaces/External.sol";
 import {FloorMath} from "../src/lib/FloorMath.sol";
 import {SafeLeg} from "../src/lib/SafeLeg.sol";
+import {StockConfig} from "../src/lib/Types.sol";
 import {BscConfig as C} from "../script/BscConfig.sol";
 
 /// Runs against real BSC mainnet state (Venus, Aave, PancakeSwap, Uniswap, bStocks) at a pinned block.
@@ -36,6 +37,7 @@ contract VaultForkTest is Test {
             365 days,
             keeper,
             C.VENUS_BLOCKS_PER_YEAR,
+            1e18,
             1e18
         );
         vm.startPrank(owner);
@@ -125,6 +127,12 @@ contract VaultForkTest is Test {
         PlinthVault v = _open(saver, nvdaId, 10_000, 1000e18);
         vm.prank(owner);
         factory.setCap(nvdaId, 6e18);
+        assertEq(factory.liveCap(nvdaId), 4.1e18, "a raise is only queued");
+        vm.expectRevert(PlinthFactory.TooEarly.selector);
+        factory.applyCap(nvdaId);
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+        factory.applyCap(nvdaId);
+        assertEq(factory.liveCap(nvdaId), 6e18, "applies after the delay");
         assertEq(v.cap(), 4.1e18, "open vault keeps its cap");
         vm.prank(owner);
         factory.setCap(nvdaId, 2e18);
@@ -209,7 +217,7 @@ contract VaultForkTest is Test {
         vm.expectRevert(PlinthVault.NotMatured.selector);
         v.roll();
         uint256 price = v.status().price;
-        vm.warp(block.timestamp + 366 days);
+        vm.warp(vm.getBlockTimestamp() + 366 days);
         // A year on, the fork's oracle feeds are stale; hold prices where they were.
         vm.mockCall(C.VENUS_ORACLE, abi.encodeCall(IResilientOracle.getPrice, (C.NVDA)), abi.encode(price));
         vm.mockCall(C.VENUS_ORACLE, abi.encodeCall(IResilientOracle.getPrice, (C.USDT)), abi.encode(1e18));
@@ -260,16 +268,15 @@ contract VaultForkTest is Test {
 
     // ------------------------------------------------------------ defending the floor
 
-    /// QQQ falls in its real pool and stays there. Once the TWAP catches up, anyone can rebalance and
-    /// the vault sells stock toward the floor. The vault ends above the floor.
+    /// QQQ falls about 10% in one block in its real pool and stays there. 90 seconds later the fast price
+    /// has followed it (the 10-minute TWAP has not), so anyone can rebalance and the sell fills.
     function test_crashSellsTowardSafety() public {
         PlinthVault v = _open(saver, qqqId, 10_000, 1000e18);
         PlinthVault.Status memory s0 = v.status();
 
-        // Dump QQQ in the pool, then let 15 minutes pass with the price there.
         _dump(C.QQQ, 100, 500e18);
-        vm.warp(block.timestamp + 900);
-        vm.roll(block.number + 2000);
+        vm.warp(vm.getBlockTimestamp() + 90);
+        vm.roll(vm.getBlockNumber() + 200);
 
         PlinthVault.Status memory s1 = v.status();
         assertLt(s1.price, s0.price * 97 / 100, "price fell");
@@ -288,12 +295,116 @@ contract VaultForkTest is Test {
     function test_namedRisk_gapBiggerThanOneOverMBreaksFloor() public {
         PlinthVault v = _open(saver, qqqId, 10_000, 1000e18);
         _dump(C.QQQ, 100, 550e18);
-        vm.warp(block.timestamp + 900);
-        vm.roll(block.number + 2000);
+        vm.warp(vm.getBlockTimestamp() + 900);
+        vm.roll(vm.getBlockNumber() + 2000);
         PlinthVault.Status memory s = v.status();
         assertLt(s.total, s.floor, "floor broken by a gap");
         // The loss is capped at the stock leg: the safe leg is untouched.
         assertGt(s.total, 800e18);
+    }
+
+    /// The v1 rule, kept as evidence: priced only by the 10-minute TWAP, the same crash leaves the vault
+    /// valuing its stock near the old price, and its sells refuse to fill 90 seconds in.
+    function test_v1Rule_slowPriceAloneCannotSellInACrash() public {
+        StockConfig memory slow = C.qqq(6e18);
+        slow.fastWindow = 600; // fast = slow: the v1 behaviour
+        vm.prank(owner);
+        uint256 id = factory.addStock(slow);
+        PlinthVault v = _open(saver, id, 10_000, 1000e18);
+        PlinthVault.Status memory s0 = v.status();
+        _dump(C.QQQ, 100, 500e18);
+        vm.warp(vm.getBlockTimestamp() + 90);
+        vm.roll(vm.getBlockNumber() + 200);
+        PlinthVault.Status memory s1 = v.status();
+        assertGt(s1.price, s0.price * 97 / 100, "still values the stock near the old price");
+        uint256 bal = IERC20(C.QQQ).balanceOf(address(v));
+        try v.rebalance() {} catch {}
+        assertEq(IERC20(C.QQQ).balanceOf(address(v)), bal, "could not sell");
+    }
+
+    /// A big vault de-risks over several calls of at most maxTrade each.
+    function test_bigVaultDerisksInChunks() public {
+        PlinthVault v = _open(saver, qqqId, 9_000, 50_000e18);
+        // Buying in also goes $10k at a time: the open buys the first $10k, the keeper the rest.
+        assertApproxEqRel(v.status().stockUsd, 10_000e18, 0.02e18, "first buy is one chunk");
+        for (uint256 k; k < 6; k++) {
+            vm.warp(vm.getBlockTimestamp() + 60);
+            vm.roll(vm.getBlockNumber() + 130);
+            v.rebalance();
+        }
+        PlinthVault.Status memory s0 = v.status();
+        assertGt(s0.stockUsd, 30_000e18, "90% floor at cap 6: most of it in stock");
+        _dump(C.QQQ, 100, 520e18);
+        vm.warp(vm.getBlockTimestamp() + 90);
+        vm.roll(vm.getBlockNumber() + 200);
+        uint256 calls;
+        uint256 before = v.status().stockUsd;
+        for (; calls < 8; calls++) {
+            PlinthVault.Status memory s = v.status();
+            uint256 bal = IERC20(C.QQQ).balanceOf(address(v));
+            try v.rebalance() {} catch { break; }
+            uint256 sold = bal - IERC20(C.QQQ).balanceOf(address(v));
+            if (sold == 0) break;
+            assertLe(sold * s.price / 1e18, 10_001e18, "one trade is at most $10k");
+            vm.warp(vm.getBlockTimestamp() + 60);
+            vm.roll(vm.getBlockNumber() + 130);
+        }
+        assertGt(calls, 1, "took more than one trade");
+        assertLt(v.status().stockUsd, before, "sold toward safety");
+        emit log_named_uint("trades to de-risk", calls);
+    }
+
+    function test_openRefusesDustAndOversize() public {
+        deal(C.USDT, saver, 60_000e18);
+        vm.startPrank(saver);
+        IERC20(C.USDT).approve(address(factory), 60_000e18);
+        vm.expectRevert(PlinthFactory.BadAmount.selector);
+        factory.open(nvdaId, 10_000, 0.5e18);
+        vm.expectRevert(PlinthFactory.BadAmount.selector);
+        factory.open(nvdaId, 10_000, 50_001e18);
+        PlinthVault v = PlinthVault(factory.open(nvdaId, 10_000, 49_000e18));
+        IERC20(C.USDT).approve(address(v), 2_000e18);
+        vm.expectRevert(PlinthVault.OverVaultLimit.selector);
+        v.deposit(2_000e18);
+        vm.stopPrank();
+    }
+
+    // ------------------------------------------------------------ a stolen keeper key
+
+    /// The bleed loop: cut to 0 (sell everything), raise to the cap (buy it back), repeat, with a sandwich
+    /// taking the slippage each time. Raises are one step per four hours, so the loop cannot run.
+    function test_stolenKeeperCannotChurnTheVault() public {
+        PlinthVault v = _open(saver, nvdaId, 10_000, 1000e18);
+        vm.prank(keeper);
+        v.setMultiplier(0);
+        v.rebalance();
+        assertEq(IERC20(C.NVDA).balanceOf(address(v)), 0, "cut applies at once");
+
+        vm.startPrank(keeper);
+        vm.expectRevert(PlinthVault.RaiseTooBig.selector);
+        v.setMultiplier(4.1e18);
+        v.setMultiplier(1e18);
+        vm.expectRevert(PlinthVault.RaiseTooSoon.selector);
+        v.setMultiplier(2e18);
+        vm.warp(vm.getBlockTimestamp() + 4 hours);
+        v.setMultiplier(2e18);
+        vm.stopPrank();
+        assertEq(v.multiplier(), 2e18);
+        assertEq(v.lastRaiseAt(), vm.getBlockTimestamp());
+    }
+
+    function test_keeperChangeWaitsADayAndRemovalIsInstant() public {
+        address next = makeAddr("next");
+        vm.prank(owner);
+        factory.proposeKeeper(next);
+        vm.expectRevert(PlinthFactory.TooEarly.selector);
+        factory.acceptKeeper();
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+        factory.acceptKeeper();
+        assertEq(factory.keeper(), next);
+        vm.prank(owner);
+        factory.removeKeeper();
+        assertEq(factory.keeper(), address(0));
     }
 
     // ------------------------------------------------------------ health gate
@@ -312,8 +423,13 @@ contract VaultForkTest is Test {
         assertEq(IERC20(C.VENUS_VUSDT).balanceOf(address(v)), 0);
     }
 
-    function test_waitsInUsdtWhenNoMarketPassesAndDerisks() public {
+    /// No market passes the gate, so the safe leg waits in plain USDT. For IDLE_GRACE the floor keeps the
+    /// last healthy rate, so one bad stretch does not sell the stock at the worst moment. After the grace
+    /// plain USDT earns nothing, the floor is the whole promise and the stock is sold.
+    function test_waitsInUsdtKeepsStockThroughGraceThenDerisks() public {
         PlinthVault v = _open(saver, nvdaId, 10_000, 1000e18);
+        uint256 rate = v.status().floorRate;
+        uint256 stock0 = IERC20(C.NVDA).balanceOf(address(v));
         vm.mockCall(C.VENUS_VUSDT, abi.encodeWithSelector(IVToken.totalBorrows.selector), abi.encode(1e40));
         vm.prank(owner);
         factory.setMarketEnabled(2, false);
@@ -322,10 +438,22 @@ contract VaultForkTest is Test {
         v.rebalance();
         assertEq(v.marketIndex(), 0, "plain USDT");
         PlinthVault.Status memory s = v.status();
-        // Plain USDT earns nothing, so the floor is the whole promise: the stock is sold.
-        assertEq(s.floor, 1000e18);
+        assertApproxEqRel(s.floorRate, rate, 0.01e18, "floor keeps the last healthy rate");
+        assertLt(s.floor, 1000e18);
+        assertEq(IERC20(C.NVDA).balanceOf(address(v)), stock0, "stock kept");
+
+        uint256 price = s.slowPrice;
+        vm.warp(vm.getBlockTimestamp() + 7 days + 1);
+        vm.roll(vm.getBlockNumber() + 1_000_000);
+        // A week on, Venus's feed is stale on the fork: hold NVDA at the same price.
+        vm.mockCall(
+            C.VENUS_ORACLE, abi.encodeWithSelector(IResilientOracle.getPrice.selector, C.NVDA), abi.encode(price)
+        );
+        vm.prank(stranger);
+        v.rebalance();
+        s = v.status();
+        assertEq(s.floor, 1000e18, "after the grace the floor is the whole promise");
         assertEq(IERC20(C.NVDA).balanceOf(address(v)), 0, "stock sold");
-        assertApproxEqRel(IERC20(C.USDT).balanceOf(address(v)), 1000e18, 0.002e18);
     }
 
     function test_rebalanceIsIdleWithinBand() public {

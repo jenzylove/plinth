@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decide, needsTrade, type RiskEvent } from '../src/policy.js';
+import { decide, needsTrade, nextMultiplier, type RiskEvent } from '../src/policy.js';
 
 const nvda = { symbol: 'NVDA', cap: 5.7, eventCap: 4.1 };
 const T = Date.UTC(2026, 10, 18, 21, 0) / 1000; // an earnings report time
@@ -43,5 +43,22 @@ describe('band rule matches the contract', () => {
     expect(needsTrade(100, 150, 0.1, 1)).toBe(true);
     expect(needsTrade(100, 0, 0.1, 1)).toBe(true);
     expect(needsTrade(0, 0.5, 0.1, 1)).toBe(false);
+  });
+});
+
+describe('raise rule', () => {
+  it('cuts at once', () => {
+    expect(nextMultiplier(5.7, 4.2, 9e9, 0)).toBe(4.2);
+  });
+  it('waits for the raise interval', () => {
+    expect(nextMultiplier(4.2, 5.7, 1000, 999)).toBeNull();
+  });
+  it('raises one step at a time, never past the target', () => {
+    expect(nextMultiplier(4.2, 5.7, 1000, 1000)).toBe(5.2);
+    expect(nextMultiplier(5.2, 5.7, 1000, 2000)).toBe(5.7);
+    expect(nextMultiplier(0, 4.1, 0, 1)).toBe(1);
+  });
+  it('sends nothing when already there', () => {
+    expect(nextMultiplier(5.7, 5.7, 0, 1)).toBeNull();
   });
 });

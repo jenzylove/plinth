@@ -33,8 +33,9 @@ interface IPlinthFactory {
 ///
 /// Who can do what:
 /// - Saver: deposit, withdraw (sold to USDT or in kind), roll at maturity. Only the saver receives funds.
-/// - Keeper: set the multiplier (never above the cap) and move the safe leg between the factory's fixed
-///   markets. It cannot move funds out.
+/// - Keeper: cut the multiplier at once, raise it back slowly (one step per interval, never above the cap),
+///   and move the safe leg between the factory's fixed markets. It cannot move funds out, and the slow
+///   raise means a stolen keeper key cannot churn the vault through sell-then-buy round trips.
 /// - Anyone: rebalance and pull out of an unhealthy market. The contract checks the math and prices, so
 ///   the vault can be defended even if the keeper is down.
 contract PlinthVault is Initializable, ReentrancyGuardTransient {
@@ -42,6 +43,9 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
 
     uint256 internal constant WAD = 1e18;
     uint256 internal constant IDLE = 0; // market index for plain USDT
+    uint256 public constant RAISE_STEP = 1e18; // the most one raise may add to the multiplier
+    uint256 public constant RAISE_INTERVAL = 4 hours; // the least time between two raises
+    uint256 public constant IDLE_GRACE = 7 days; // how long plain USDT keeps the last healthy floor rate
 
     IPlinthFactory public factory;
     address public saver;
@@ -58,6 +62,9 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     uint256 public maturity; // timestamp
     uint256 public marketIndex; // where the safe leg sits: 0 = plain USDT, i = factory.market(i)
     uint256 internal _idleSeen; // USDT balance after the last action, to credit plain transfers
+    uint256 public lastRaiseAt; // when the keeper last raised the multiplier
+    uint256 public rateSeen; // the last healthy market's floor rate, WAD
+    uint256 public idleSince; // when the safe leg fell back to plain USDT (0 while in a market)
 
     event Deposited(address indexed from, uint256 amount, uint256 promised);
     event Rebalanced(
@@ -83,6 +90,9 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     error NotMatured();
     error MarketUnhealthy(uint8 code);
     error MarketDisabled();
+    error RaiseTooSoon();
+    error RaiseTooBig();
+    error OverVaultLimit();
 
     modifier onlySaver() {
         if (msg.sender != saver) revert NotSaver();
@@ -128,6 +138,7 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
 
     /// Add USDT. Anyone can add for the saver; the promise grows by amount x promiseBps.
     function deposit(uint256 amount) external nonReentrant accounting {
+        if (deposited + amount > _stock.maxVault) revert OverVaultLimit();
         IERC20(usdt).safeTransferFrom(msg.sender, address(this), amount);
         _credit(msg.sender, amount);
     }
@@ -144,7 +155,7 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         uint256 idle0 = IERC20(usdt).balanceOf(address(this));
         uint256 stockOut = FPM.mulWad(_stockBalance(), share);
         if (stockOut > 0) {
-            uint256 price = StockLeg.refPrice(_stock, usdt, factory.oracle());
+            (uint256 price,,) = StockLeg.mark(_stock, usdt, factory.oracle());
             StockLeg.sell(_stock, usdt, stockOut, price);
         }
         SafeLeg.redeem(m, usdt, share == WAD ? type(uint256).max : FPM.mulWad(SafeLeg.position(m), share));
@@ -183,9 +194,15 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
 
     // ---------------------------------------------------------------- keeper
 
-    /// Set the multiplier. Never above the cap; the keeper uses this to cut risk before events.
+    /// Set the multiplier. Cuts apply at once (the keeper cuts risk before events). Raises add at most
+    /// RAISE_STEP, at most once per RAISE_INTERVAL, and never go above the cap.
     function setMultiplier(uint256 m) external onlyKeeper {
         if (m > cap()) revert AboveCap();
+        if (m > multiplier) {
+            if (block.timestamp < lastRaiseAt + RAISE_INTERVAL) revert RaiseTooSoon();
+            if (m - multiplier > RAISE_STEP) revert RaiseTooBig();
+            lastRaiseAt = block.timestamp;
+        }
         multiplier = m;
         emit MultiplierSet(msg.sender, m);
     }
@@ -202,7 +219,7 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         if (code != SafeLeg.OK) revert MarketUnhealthy(code);
         SafeLeg.redeem(from, usdt, type(uint256).max);
         emit MovedSafeLeg(marketIndex, to, amount);
-        marketIndex = to;
+        _enter(to);
         _park();
     }
 
@@ -216,15 +233,18 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         (int256 delta, FloorMath.Reason reason) =
             FloorMath.decide(stockUsd, target, _stock.band, factory.minTrade());
 
+        // One trade is at most maxTrade. A bigger move happens over several calls, each priced afresh, so
+        // the vault never pushes a thin pool past its slippage limit in one go.
         if (delta > 0) {
-            uint256 usd = uint256(delta);
+            uint256 usd = FPM.min(uint256(delta), _stock.maxTrade);
             uint256 idle = IERC20(usdt).balanceOf(address(this));
             if (idle < usd) SafeLeg.redeem(_market(marketIndex), usdt, usd - idle);
             StockLeg.buy(_stock, usdt, usd, price);
         } else if (delta < 0) {
-            uint256 tokens = reason == FloorMath.Reason.CushionGone
+            uint256 usd = FPM.min(uint256(-delta), _stock.maxTrade);
+            uint256 tokens = reason == FloorMath.Reason.CushionGone && usd == uint256(-delta)
                 ? _stockBalance()
-                : FPM.min(_stockBalance(), FPM.divWad(uint256(-delta), price));
+                : FPM.min(_stockBalance(), FPM.divWad(usd, price));
             StockLeg.sell(_stock, usdt, tokens, price);
         }
         _park();
@@ -252,7 +272,9 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         uint256 total; // USDT value now
         uint256 stockUsd;
         uint256 safeUsd;
-        uint256 price; // reference price of the bStock
+        uint256 price; // the price the vault values and trades at: the lower of slowPrice and fastPrice
+        uint256 slowPrice; // Venus's oracle, or the pool's long TWAP
+        uint256 fastPrice; // the pool's short TWAP
         uint256 floor; // today's value of the promise
         uint256 target; // stock leg target
         uint256 breakDistance; // WAD fraction; max uint when no stock is held
@@ -264,15 +286,20 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         uint256 maturity;
         uint256 marketIndex;
         uint8 gateCode; // health of the current market, 0 = healthy
+        uint256 nextRaiseAt; // earliest time the keeper may raise the multiplier again
+        uint256 idleSince; // when the safe leg fell back to plain USDT, 0 while in a market
     }
 
     /// Everything the app shows, read from chain.
     function status() external view returns (Status memory s) {
         (s.total, s.stockUsd, s.price, s.floor) = _values();
+        (, s.slowPrice, s.fastPrice) = StockLeg.mark(_stock, usdt, factory.oracle());
         s.safeUsd = s.total - s.stockUsd;
         s.target = FloorMath.targetStock(s.total, s.floor, multiplier);
         s.breakDistance = FloorMath.breakDistance(s.stockUsd, s.total, s.floor);
         s.floorRate = _floorRate(_market(marketIndex));
+        s.nextRaiseAt = lastRaiseAt + RAISE_INTERVAL;
+        s.idleSince = idleSince;
         s.multiplier = multiplier;
         s.cap = cap();
         s.promised = promised;
@@ -294,9 +321,29 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     }
 
     /// The floor is discounted at what the safe leg earns now, capped by the factory's maxFloorRate.
-    /// Plain USDT earns nothing, so while idle the floor is the full promise.
+    /// Plain USDT earns nothing. A short stay in plain USDT (a market failing its gate until another passes)
+    /// keeps the last healthy rate for IDLE_GRACE, so one bad hour does not sell the whole stock leg at the
+    /// worst moment. The cost is bounded: at most 7 days of interest, about 0.07% of the promise at 3.5%.
+    /// After the grace the floor is the full promise.
     function _floorRate(Market memory m) internal view returns (uint256) {
+        if (m.kind != MarketKind.None) return _liveRate(m);
+        if (idleSince != 0 && block.timestamp <= idleSince + IDLE_GRACE) return rateSeen;
+        return 0;
+    }
+
+    function _liveRate(Market memory m) internal view returns (uint256) {
         return FPM.min(SafeLeg.rate(m, usdt, factory.venusBlocksPerYear()), factory.maxFloorRate());
+    }
+
+    /// Point the safe leg at market `to`, keeping the floor-rate memory up to date.
+    function _enter(uint256 to) internal {
+        if (to == IDLE) {
+            if (marketIndex != IDLE) idleSince = block.timestamp;
+        } else {
+            idleSince = 0;
+            rateSeen = _liveRate(factory.market(to));
+        }
+        marketIndex = to;
     }
 
     /// Values at the reference price. Callers that change state accrue Venus interest first.
@@ -306,7 +353,7 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         returns (uint256 total, uint256 stockUsd, uint256 price, uint256 floor_)
     {
         Market memory m = _market(marketIndex);
-        price = StockLeg.refPrice(_stock, usdt, factory.oracle());
+        (price,,) = StockLeg.mark(_stock, usdt, factory.oracle());
         stockUsd = FPM.mulWad(_stockBalance(), price);
         total = stockUsd + SafeLeg.position(m) + IERC20(usdt).balanceOf(address(this));
         uint256 left = block.timestamp >= maturity ? 0 : maturity - block.timestamp;
@@ -323,10 +370,13 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
             SafeLeg.accrue(m);
             bool enabled = factory.marketEnabled(marketIndex);
             uint8 code = enabled ? SafeLeg.check(m, usdt, oracle, g, SafeLeg.position(m)) : SafeLeg.PAUSED;
-            if (code == SafeLeg.OK) return;
+            if (code == SafeLeg.OK) {
+                rateSeen = _liveRate(m);
+                return;
+            }
             SafeLeg.redeem(m, usdt, type(uint256).max);
             emit PulledOut(marketIndex, code);
-            marketIndex = IDLE;
+            _enter(IDLE);
         }
         uint256 idle = IERC20(usdt).balanceOf(address(this));
         uint256 best;
@@ -341,7 +391,7 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         }
         if (best != IDLE) {
             emit MovedSafeLeg(IDLE, best, idle);
-            marketIndex = best;
+            _enter(best);
         }
     }
 
@@ -351,7 +401,7 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         uint256 idle = IERC20(usdt).balanceOf(address(this));
         if (!SafeLeg.supply(_market(marketIndex), usdt, idle)) {
             emit PulledOut(marketIndex, SafeLeg.PAUSED);
-            marketIndex = IDLE;
+            _enter(IDLE);
         }
     }
 
