@@ -65,6 +65,9 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     uint256 public lastRaiseAt; // when the keeper last raised the multiplier
     uint256 public rateSeen; // the last healthy market's floor rate, WAD
     uint256 public idleSince; // when the safe leg fell back to plain USDT (0 while in a market)
+    uint256 public excess; // USDT that arrived above the principal cap: held aside, never invested, paid out on withdraw
+    bool public impaired; // the current market failed its gate and would not redeem: sell-only until it does
+    bool public exiting; // the saver started a staged exit: target exposure is zero, sells go in chunks
 
     event Deposited(address indexed from, uint256 amount, uint256 promised);
     event Rebalanced(
@@ -82,6 +85,13 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     event Withdrawn(uint256 share, uint256 usdtOut, uint256 promisedLeft);
     event WithdrawnInKind(uint256 share, uint256 stockOut, uint256 receiptOut, uint256 usdtOut);
     event Rolled(uint256 maturity, uint256 promised);
+    /// What a swap actually did: USDT spent or received, and stock tokens received or sold.
+    event Traded(bool buy, uint256 usdtAmount, uint256 tokens);
+    event Impaired(uint256 indexed marketIndex, uint8 gateCode);
+    event SupplyRefused(uint256 indexed marketIndex, uint256 amount);
+    event HeldAside(uint256 amount, uint256 excess);
+    event ExitStarted();
+    event ExitCancelled();
 
     error NotSaver();
     error NotKeeper();
@@ -93,6 +103,7 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     error RaiseTooSoon();
     error RaiseTooBig();
     error OverVaultLimit();
+    error UseStagedExit();
 
     modifier onlySaver() {
         if (msg.sender != saver) revert NotSaver();
@@ -104,11 +115,11 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         _;
     }
 
-    /// Credits USDT that arrived by plain transfer, then records the balance after the action.
+    /// Credits USDT that arrived by plain transfer, then records the idle balance after the action.
     modifier accounting() {
         _creditTransfers();
         _;
-        _idleSeen = IERC20(usdt).balanceOf(address(this));
+        _idleSeen = _idle();
     }
 
     constructor() {
@@ -147,20 +158,27 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     function sync() external nonReentrant accounting {}
 
     /// Leave with `share` (WAD, 1e18 = all) of the vault, sold to USDT at today's value.
+    /// A stock part bigger than one trade (maxTrade) cannot be sold in one swap without pushing a thin pool past
+    /// its slippage limit: start a staged exit (beginExit) or withdraw in kind instead.
     function withdraw(uint256 share) external nonReentrant onlySaver accounting {
         if (share == 0 || share > WAD) revert BadShare();
         Market memory m = _market(marketIndex);
         SafeLeg.accrue(m);
 
-        uint256 idle0 = IERC20(usdt).balanceOf(address(this));
+        uint256 bal0 = IERC20(usdt).balanceOf(address(this));
+        uint256 idle0 = _idle();
         uint256 stockOut = FPM.mulWad(_stockBalance(), share);
         if (stockOut > 0) {
             (uint256 price,,) = StockLeg.mark(_stock, usdt, factory.oracle());
-            StockLeg.sell(_stock, usdt, stockOut, price);
+            if (FPM.mulWad(stockOut, price) > _stock.maxTrade) revert UseStagedExit();
+            uint256 got = StockLeg.sell(_stock, usdt, stockOut, price);
+            emit Traded(false, got, stockOut);
         }
         SafeLeg.redeem(m, usdt, share == WAD ? type(uint256).max : FPM.mulWad(SafeLeg.position(m), share));
-        // Sale proceeds and redeemed USDT, plus the same share of the USDT that was already idle.
-        uint256 out = IERC20(usdt).balanceOf(address(this)) - idle0 + FPM.mulWad(idle0, share);
+        // Sale proceeds and redeemed USDT, the same share of idle USDT, and the same share of anything held aside.
+        uint256 aside = FPM.mulWad(excess, share);
+        excess -= aside;
+        uint256 out = IERC20(usdt).balanceOf(address(this)) - bal0 + FPM.mulWad(idle0, share) + aside;
         _shrink(share);
         IERC20(usdt).safeTransfer(saver, out);
         emit Withdrawn(share, out, promised);
@@ -173,7 +191,10 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         Market memory m = _market(marketIndex);
         uint256 stockOut = includeStock ? FPM.mulWad(_stockBalance(), share) : 0;
         uint256 receiptOut = m.kind == MarketKind.None ? 0 : FPM.mulWad(IERC20(m.receipt).balanceOf(address(this)), share);
-        uint256 usdtOut = FPM.mulWad(IERC20(usdt).balanceOf(address(this)), share);
+        uint256 idleShare = FPM.mulWad(_idle(), share);
+        uint256 aside = FPM.mulWad(excess, share);
+        excess -= aside;
+        uint256 usdtOut = idleShare + aside;
         _shrink(share);
         if (stockOut > 0) IERC20(_stock.token).safeTransfer(saver, stockOut);
         if (receiptOut > 0) IERC20(m.receipt).safeTransfer(saver, receiptOut);
@@ -190,6 +211,18 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         promised = total * promiseBps / 10_000;
         deposited = total;
         emit Rolled(maturity, promised);
+    }
+
+    /// Start a staged exit: the vault's target exposure drops to zero and every rebalance (the keeper's, or anyone's)
+    /// sells up to maxTrade of stock into USDT. When the stock is gone, withdraw takes everything in one call.
+    function beginExit() external onlySaver {
+        exiting = true;
+        emit ExitStarted();
+    }
+
+    function cancelExit() external onlySaver {
+        exiting = false;
+        emit ExitCancelled();
     }
 
     // ---------------------------------------------------------------- keeper
@@ -213,12 +246,13 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         if (to != IDLE && !factory.marketEnabled(to)) revert MarketDisabled();
         Market memory from = _market(marketIndex);
         SafeLeg.accrue(from);
-        uint256 amount = SafeLeg.position(from) + IERC20(usdt).balanceOf(address(this));
+        uint256 amount = SafeLeg.position(from) + _idle();
         Market memory next = _market(to);
         uint8 code = SafeLeg.check(next, usdt, factory.oracle(), factory.gate(), amount);
         if (code != SafeLeg.OK) revert MarketUnhealthy(code);
         SafeLeg.redeem(from, usdt, type(uint256).max);
         emit MovedSafeLeg(marketIndex, to, amount);
+        impaired = false;
         _enter(to);
         _park();
     }
@@ -226,29 +260,37 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     // ---------------------------------------------------------------- anyone
 
     /// Check the safe leg's health, then trade the stock leg back to target if it has drifted past the band.
+    /// Check the safe leg's health, then trade the stock leg back to target if it has drifted past the band.
+    /// The target uses the effective multiplier: the stored one, never above today's cap, zero during an exit.
+    /// While the safe leg is impaired the vault only sells: it may cut risk, never add it.
     function rebalance() external nonReentrant accounting {
         _guardSafeLeg();
         (uint256 total, uint256 stockUsd, uint256 price, uint256 floor_) = _values();
-        uint256 target = FloorMath.targetStock(total, floor_, multiplier);
+        uint256 m = effectiveMultiplier();
+        uint256 target = FloorMath.targetStock(total, floor_, m);
         (int256 delta, FloorMath.Reason reason) =
             FloorMath.decide(stockUsd, target, _stock.band, factory.minTrade());
 
         // One trade is at most maxTrade. A bigger move happens over several calls, each priced afresh, so
         // the vault never pushes a thin pool past its slippage limit in one go.
-        if (delta > 0) {
+        if (delta > 0 && !impaired) {
             uint256 usd = FPM.min(uint256(delta), _stock.maxTrade);
-            uint256 idle = IERC20(usdt).balanceOf(address(this));
-            if (idle < usd) SafeLeg.redeem(_market(marketIndex), usdt, usd - idle);
-            StockLeg.buy(_stock, usdt, usd, price);
+            uint256 idle = _idle();
+            if (idle < usd && !SafeLeg.tryRedeem(_market(marketIndex), usdt, usd - idle)) usd = _idle();
+            if (usd >= factory.minTrade()) {
+                uint256 got = StockLeg.buy(_stock, usdt, usd, price);
+                emit Traded(true, usd, got);
+            }
         } else if (delta < 0) {
             uint256 usd = FPM.min(uint256(-delta), _stock.maxTrade);
             uint256 tokens = reason == FloorMath.Reason.CushionGone && usd == uint256(-delta)
                 ? _stockBalance()
                 : FPM.min(_stockBalance(), FPM.divWad(usd, price));
-            StockLeg.sell(_stock, usdt, tokens, price);
+            uint256 got = StockLeg.sell(_stock, usdt, tokens, price);
+            emit Traded(false, got, tokens);
         }
         _park();
-        emit Rebalanced(reason, delta, price, total, floor_, target, multiplier);
+        emit Rebalanced(reason, delta, price, total, floor_, target, m);
     }
 
     /// Leave an unhealthy market. Anyone can call it; it does nothing if the market is healthy.
@@ -266,6 +308,12 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
     /// Effective cap: the lower of the cap at open and the factory's live cap for this stock.
     function cap() public view returns (uint256) {
         return FPM.min(capAtOpen, factory.liveCap(stockId));
+    }
+
+    /// The multiplier targets use: the stored one, never above today's cap, and zero during a staged exit. A cap
+    /// cut by the owner therefore binds on the next rebalance anyone calls, with no keeper action needed.
+    function effectiveMultiplier() public view returns (uint256) {
+        return exiting ? 0 : FPM.min(multiplier, cap());
     }
 
     struct Status {
@@ -288,6 +336,9 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         uint8 gateCode; // health of the current market, 0 = healthy
         uint256 nextRaiseAt; // earliest time the keeper may raise the multiplier again
         uint256 idleSince; // when the safe leg fell back to plain USDT, 0 while in a market
+        uint256 excess; // USDT held aside above the principal cap (not in total)
+        bool impaired; // safe leg would not redeem: sell-only
+        bool exiting; // staged exit in progress
     }
 
     /// Everything the app shows, read from chain.
@@ -295,12 +346,15 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         (s.total, s.stockUsd, s.price, s.floor) = _values();
         (, s.slowPrice, s.fastPrice) = StockLeg.mark(_stock, usdt, factory.oracle());
         s.safeUsd = s.total - s.stockUsd;
-        s.target = FloorMath.targetStock(s.total, s.floor, multiplier);
+        s.target = FloorMath.targetStock(s.total, s.floor, effectiveMultiplier());
         s.breakDistance = FloorMath.breakDistance(s.stockUsd, s.total, s.floor);
         s.floorRate = _floorRate(_market(marketIndex));
         s.nextRaiseAt = lastRaiseAt + RAISE_INTERVAL;
         s.idleSince = idleSince;
-        s.multiplier = multiplier;
+        s.multiplier = effectiveMultiplier();
+        s.excess = excess;
+        s.impaired = impaired;
+        s.exiting = exiting;
         s.cap = cap();
         s.promised = promised;
         s.deposited = deposited;
@@ -355,7 +409,7 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         Market memory m = _market(marketIndex);
         (price,,) = StockLeg.mark(_stock, usdt, factory.oracle());
         stockUsd = FPM.mulWad(_stockBalance(), price);
-        total = stockUsd + SafeLeg.position(m) + IERC20(usdt).balanceOf(address(this));
+        total = stockUsd + SafeLeg.position(m) + _idle();
         uint256 left = block.timestamp >= maturity ? 0 : maturity - block.timestamp;
         floor_ = FloorMath.floorValue(promised, _floorRate(m), left);
     }
@@ -372,13 +426,21 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
             uint8 code = enabled ? SafeLeg.check(m, usdt, oracle, g, SafeLeg.position(m)) : SafeLeg.PAUSED;
             if (code == SafeLeg.OK) {
                 rateSeen = _liveRate(m);
+                impaired = false;
                 return;
             }
-            SafeLeg.redeem(m, usdt, type(uint256).max);
+            // Leave first. If the market will not redeem, keep tracking the position, mark the vault impaired
+            // (sell-only) and carry on: a frozen lending market must not stop the vault selling stock.
+            if (!SafeLeg.tryRedeem(m, usdt, type(uint256).max)) {
+                if (!impaired) emit Impaired(marketIndex, code);
+                impaired = true;
+                return;
+            }
+            impaired = false;
             emit PulledOut(marketIndex, code);
             _enter(IDLE);
         }
-        uint256 idle = IERC20(usdt).balanceOf(address(this));
+        uint256 idle = _idle();
         uint256 best;
         uint256 bestRate;
         uint256 n = factory.marketCount();
@@ -395,19 +457,39 @@ contract PlinthVault is Initializable, ReentrancyGuardTransient {
         }
     }
 
-    /// Put idle USDT into the current market. If the market refuses, it stays as plain USDT.
+    /// Put idle USDT into the current market. If the market refuses, the USDT stays idle (still counted). The vault
+    /// keeps tracking the market while it holds a position there; it falls back to plain USDT only when nothing is
+    /// left in the market, so a refused top-up can never hide an existing position.
     function _park() internal {
-        if (marketIndex == IDLE) return;
-        uint256 idle = IERC20(usdt).balanceOf(address(this));
-        if (!SafeLeg.supply(_market(marketIndex), usdt, idle)) {
-            emit PulledOut(marketIndex, SafeLeg.PAUSED);
-            _enter(IDLE);
+        if (marketIndex == IDLE || impaired) return;
+        uint256 idle = _idle();
+        Market memory m = _market(marketIndex);
+        if (!SafeLeg.supply(m, usdt, idle)) {
+            emit SupplyRefused(marketIndex, idle);
+            if (SafeLeg.position(m) == 0) _enter(IDLE);
         }
     }
 
-    function _creditTransfers() internal {
+    /// USDT the vault holds for the strategy: its balance minus anything held aside.
+    function _idle() internal view returns (uint256) {
         uint256 bal = IERC20(usdt).balanceOf(address(this));
-        if (bal > _idleSeen) _credit(address(0), bal - _idleSeen);
+        return bal > excess ? bal - excess : 0;
+    }
+
+    /// Credit USDT that arrived by plain transfer, up to the principal cap (maxVault). Anything above is held aside:
+    /// counted for the saver and paid out on withdraw, but never invested, so a large transfer cannot push the
+    /// vault past the size its chunked trades are designed for. Nothing reverts, so a stray transfer cannot lock exits.
+    function _creditTransfers() internal {
+        uint256 idle = _idle();
+        if (idle <= _idleSeen) return;
+        uint256 amount = idle - _idleSeen;
+        uint256 room = _stock.maxVault > deposited ? _stock.maxVault - deposited : 0;
+        uint256 accept = FPM.min(amount, room);
+        if (accept > 0) _credit(address(0), accept);
+        if (amount > accept) {
+            excess += amount - accept;
+            emit HeldAside(amount - accept, excess);
+        }
     }
 
     function _credit(address from, uint256 amount) internal {

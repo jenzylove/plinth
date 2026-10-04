@@ -35,10 +35,13 @@ library StockLeg {
         }
     }
 
-    /// The price the vault values and trades at: the lower of the slow and fast references.
-    /// - In a crash the fast reference drops first, so the vault marks itself down and its sells fill.
-    /// - In a spike the slow reference stays lower, so the vault does not chase it with buys.
-    /// - Pushing the pool up cannot raise it; pushing it down takes a minute of trading against arbitrage.
+    /// The price the vault values and trades at: min(slow, max(fast, spot)).
+    /// - A crash that lasts: the 60-second average and the live pool price both drop, so the vault marks itself
+    ///   down within about a minute and its sells fill.
+    /// - A hole that recovers: the live price is back, so max(fast, spot) is back and nothing is sold. (Fork test
+    ///   test_M5_shortDownsidePrints measures 5 to 120 second holes.)
+    /// - A spike: the slow reference stays lower, so the vault does not chase it with buys.
+    /// - Pushing the pool up cannot lower the mark; it can only delay a sale, and any sale then fills at the pushed price.
     function mark(StockConfig memory s, address usdt, IResilientOracle oracle)
         internal
         view
@@ -46,7 +49,17 @@ library StockLeg {
     {
         slow = refPrice(s, usdt, oracle);
         fast = fastPrice(s, usdt, slow);
-        price = fast < slow ? fast : slow;
+        uint256 confirmed = FPM.max(fast, spotPrice(s, usdt));
+        price = confirmed < slow ? confirmed : slow;
+    }
+
+    /// The pool's live price, USDT per bStock, WAD (both tokens have 18 decimals).
+    function spotPrice(StockConfig memory s, address usdt) internal view returns (uint256) {
+        (uint160 sqrtP,,,,,,) = IUniV3Pool(s.pool).slot0();
+        uint256 p1per0 = FPM.fullMulDiv(FPM.fullMulDiv(sqrtP, sqrtP, 1 << 96), WAD, 1 << 96);
+        if (IUniV3Pool(s.pool).token0() == s.token) return p1per0;
+        require(IUniV3Pool(s.pool).token0() == usdt, "pool pair");
+        return p1per0 == 0 ? type(uint256).max : FPM.fullMulDiv(WAD, WAD, p1per0);
     }
 
     function twap(StockConfig memory s, address usdt, uint32 window) internal view returns (uint256) {

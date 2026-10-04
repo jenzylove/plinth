@@ -61,6 +61,11 @@ interface IUniV3Pool {
         external
         view
         returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s);
+    /// Uniswap v3 returns uint8 feeProtocol, PancakeSwap v3 uint32; reading it as uint32 decodes both.
+    function slot0()
+        external
+        view
+        returns (uint160 sqrtPriceX96, int24 tick, uint16, uint16, uint16, uint32, bool);
 }
 
 /// PancakeSwap v3 SwapRouter (has a deadline field).

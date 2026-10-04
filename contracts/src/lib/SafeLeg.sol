@@ -116,6 +116,30 @@ library SafeLeg {
         }
     }
 
+    /// Like redeem, but returns false instead of reverting when the market refuses (paused, out of cash).
+    function tryRedeem(Market memory m, address usdt, uint256 amount) internal returns (bool ok) {
+        if (amount == 0 || m.kind == MarketKind.None) return true;
+        if (m.kind == MarketKind.Venus) {
+            IVToken v = IVToken(m.target);
+            if (amount == type(uint256).max) {
+                uint256 bal = v.balanceOf(address(this));
+                if (bal == 0) return true;
+                try v.redeem(bal) returns (uint256 err) {
+                    ok = err == 0;
+                } catch {}
+            } else {
+                try v.redeemUnderlying(amount) returns (uint256 err) {
+                    ok = err == 0;
+                } catch {}
+            }
+        } else {
+            if (amount == type(uint256).max && IERC20(m.receipt).balanceOf(address(this)) == 0) return true;
+            try IAavePool(m.target).withdraw(usdt, amount, address(this)) returns (uint256) {
+                ok = true;
+            } catch {}
+        }
+    }
+
     /// Bring Venus interest up to date so position() is exact.
     function accrue(Market memory m) internal {
         if (m.kind == MarketKind.Venus) IVToken(m.target).accrueInterest();
