@@ -107,7 +107,11 @@ export function buildAgentCard(
   }
   return {
     name,
-    description: `ERC-8183 seller agent (${name}) — negotiate + notify_funded over A2A.`,
+    description:
+      `Plinth keeper (${name}): keeps Plinth's capital-protected bStock savings vaults on BSC mainnet. ` +
+      "Rebalances around the clock, cuts risk before earnings and US macro releases, and pulls the safe leg out of " +
+      "unhealthy lending markets. Holds the factory's keeper role and cannot withdraw savers' funds. " +
+      "Live state at /keeper and /keeper/log. ERC-8183 jobs: a vault report, negotiate + notify_funded over A2A.",
     // main.ts overwrites this with $AGENTCORE_RUNTIME_URL at boot.
     // Local-dev fallback: a client-routable localhost URL (not the 0.0.0.0
     // bind address). Host via AGENT_HOST (default localhost); port via the
