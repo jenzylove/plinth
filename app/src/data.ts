@@ -30,7 +30,21 @@ export const gapOf = (sym: string) => gaps.stocks.find((g) => g.sym === sym);
 export interface ReplayResult {
   name: string; forkBlock: number; at: number[];
   plinthTotal: string[]; floor: string[]; plinthStock: string[]; plinthMultiplier: string[];
-  bankTotal: string[]; bankStock: string[]; nvdaPrice: string[];
-  plinthEverBelowFloor: boolean; bankEverBelowFloor: boolean;
+  bankTotal: string[]; bankStock: string[]; nvdaPrice: string[]; bankCutTotal: string[];
+  plinthEverBelowFloor: boolean; bankEverBelowFloor: boolean; bankCutEverBelowFloor: boolean;
 }
 export const replays = { paths: replayPaths, results: [replay2018, replay2026] as unknown as ReplayResult[], utilization: replayUtil };
+
+import closedHoursFile from '@data/closed-hours-2026-10-04.json';
+import alwaysOnFile from '@data/always-on-2026-10-04.json';
+
+export interface ClosedStretch { sym: string; from: string; to: string; hours: number; lastClose: number; low: number; lowAt: string; nextOpen: number; worstInside: number; atOpen: number }
+export const closedHours = closedHoursFile as unknown as { generated: string; source: string; rule: string; worst: ClosedStretch[]; summary: { sym: string; hours: number; from: string; closedStretches: number; fellOver2: number; fellOver5: number; worstInside: number }[] };
+
+interface Run { minMargin: number; end: number; trades: number; hoursBelowFloor: number }
+export const alwaysOn = alwaysOnFile as unknown as {
+  generated: string; source: string; rule: string;
+  config: Record<string, string | number>;
+  totals: { stocks: number; alwaysOnHoursBelowFloor: number; deskHoursBelowFloor: number; meanEndDiff: number; meanMinMarginDiff: number; naiveStocksBelowFloor: string[]; naiveWorstEnd: number };
+  stocks: { sym: string; cap: number; hours: number; excluded: boolean; alwaysOn: Run; desk: Run; naiveAlwaysOn: Run }[];
+};

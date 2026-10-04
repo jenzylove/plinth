@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { floorValue, startingExposure, YEAR_SECONDS } from '@core/cppi';
 import {
-  BSCSCAN, DEMO_VAULT, FACTORY, GATE_CODES, bestMarket, currentKeeper, factoryTerms, listedStocks, safeMarkets, vaultStatus,
-  type ListedStock, type SafeMarket,
+  BSCSCAN, DEMO_VAULT, FACTORY, GATE_CODES, RELAY, bestMarket, currentKeeper, factoryTerms, listedStocks, rwaPrice, safeMarkets,
+  sellQuote, usdtEarnProducts, vaultStatus, type DefiProduct, type ListedStock, type SafeMarket,
 } from '../chain';
+import type { Address } from 'viem';
 import { calibration, calibrationOf, gapOf, NAMES, replays, symOf } from '../data';
 import { pct, short, usd, wad } from '../format';
 import { CountUp, FillText, Reveal, useScrollProgress } from '../motion';
@@ -36,6 +37,8 @@ export function Front() {
   const [bps, setBps] = useState(10_000);
   const [amount, setAmount] = useState(1000);
   const [open, setOpen] = useState<number | null>(0);
+  const [defi, setDefi] = useState<DefiProduct[] | null>(null);
+  const [roundTrip, setRoundTrip] = useState<{ cost: number; vendor: string } | null>(null);
 
   useEffect(() => {
     Promise.all([safeMarkets(amount), factoryTerms(), listedStocks()])
@@ -45,7 +48,14 @@ export function Front() {
       }))
       .catch((e) => setError(String(e?.shortMessage ?? e?.message ?? e)));
     vaultStatus(DEMO_VAULT).then(setVault).catch(() => setVault(null));
+    usdtEarnProducts().then(setDefi).catch(() => setDefi([]));
   }, []);
+  // The health gate's cash check depends on the deposit size: re-run it for the amount typed (debounced).
+  useEffect(() => {
+    if (!live) return;
+    const t = setTimeout(() => safeMarkets(amount).then((markets) => setLive((l) => (l ? { ...l, markets } : l))).catch(() => {}), 600);
+    return () => clearTimeout(t);
+  }, [amount]);
 
   const stock = live?.stocks.find((s) => s.sym === sym);
   const market = live ? bestMarket(live.markets) : null;
@@ -63,6 +73,22 @@ export function Front() {
     return { rate, promise, floor, inStock, months: Math.round((live.termSeconds / YEAR_SECONDS) * 12) };
   }, [live, stock, market, amount, bps]);
 
+  // Leaving right after opening costs a round trip on the stock part. Price the sale with a live Binance Web3 API
+  // quote and assume the buy cost the same.
+  useEffect(() => {
+    setRoundTrip(null);
+    if (!stock || !calc || calc.inStock <= 0) return;
+    const t = setTimeout(async () => {
+      try {
+        const p = await rwaPrice(stock.token as Address);
+        if (!p) return;
+        const q = await sellQuote(stock.token as Address, calc.inStock / p.tokenPrice);
+        if (q) setRoundTrip({ cost: 2 * q.cost, vendor: q.vendor });
+      } catch { /* no quote: the tile says so */ }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [stock?.token, calc?.inStock]);
+
   const scale = amount / 1000; // the backtest is per $1,000
 
   // The replay's headline: margin over the floor right after Nvidia's 2018 gap opened.
@@ -70,6 +96,7 @@ export function Front() {
   const gapStep = replays.paths.paths[0].steps.findIndex((s: { date: string; kind: string }) => s.date === '2018-11-16' && s.kind === 'open');
   const plinthAtGap = wad(r18.plinthTotal[gapStep]) - wad(r18.floor[gapStep]);
   const bankAtGap = wad(r18.bankTotal[gapStep]) - wad(r18.floor[gapStep]);
+  const cutAtGap = wad(r18.bankCutTotal[gapStep]) - wad(r18.floor[gapStep]);
   const bars = r18.plinthTotal.map(wad);
   const bLo = Math.min(...r18.floor.map(wad)) - 3, bHi = Math.max(...bars);
 
@@ -126,7 +153,8 @@ export function Front() {
             <div className="calc-out">
               <div className="stat"><span>Works in {name}</span><strong><CountUp value={calc.inStock} format={(x) => usd(x)} /></strong></div>
               <div className="stat"><span>Back at {calc.months} months, at least</span><strong><CountUp value={calc.promise} format={(x) => usd(x)} /></strong></div>
-              <div className="stat"><span>Worst exit today</span><strong><CountUp value={calc.floor} format={(x) => usd(x)} /></strong></div>
+              <div className="stat"><span>Leave right after</span><strong>{roundTrip ? <CountUp value={amount - roundTrip.cost} format={(x) => usd(x, 2)} /> : '…'}</strong>
+                <small className="muted">{roundTrip ? `a round trip at a live ${roundTrip.vendor} quote` : 'asking the Binance Web3 API'}; the floor today is {usd(calc.floor)}</small></div>
             </div>
           )}
           {calc && <Deposit stockId={stock?.id} bps={bps} amount={amount} name={name} onAmount={setAmount} />}
@@ -149,6 +177,7 @@ export function Front() {
             <p className="muted">
               Lent on {market?.name ?? 'Venus or Aave'} {market && <>at <b>{pct(market.rate, 2)}</b> a year, {pct(market.utilization)} lent out</>}.
               If a pool gets crowded or paused, the vault pulls out first.
+              {defi && defi.length > 0 && <> The Binance DeFi API lists {defi.length} USDT products on BSC; Plinth uses only the {defi.filter((d) => d.allowed).length} plain lending markets.</>}
             </p>
             {calc && <div className="big"><CountUp value={amount - calc.inStock} format={(x) => usd(x)} /><small>of {usd(amount)}</small></div>}
           </Reveal>
@@ -180,10 +209,12 @@ export function Front() {
         <Reveal className="huge-note" delay={150}>
           <p>
             <b>Above the floor</b> the morning Nvidia opened {pct(gap?.worstGap ?? -0.193)} on 2018-11-16, in a replay of
-            the real contracts on BSC mainnet. A bank desk running the same method was {usd(bankAtGap, 2)} above.
+            the real contracts on a copy of BSC mainnet. A bank desk running the same method was {usd(bankAtGap, 2)} above;
+            a desk making the same cut before the report, {usd(cutAtGap, 2)}.
           </p>
           <p className="muted">
-            The difference: the keeper cut risk the day before the report. <a href="/proof">See every step</a>.
+            Most of the difference is the cut before earnings. Trading around the clock adds the rest, and on three months
+            of real bStock prices it cost about nothing. <a href="/proof">See every step</a>.
           </p>
         </Reveal>
       </section>
@@ -203,9 +234,9 @@ export function Front() {
           <Reveal as="h2">What is going on here.</Reveal>
           {[
             ['A floor we defend, not a guarantee', `The vault keeps enough in safe lending that, grown at today's rate, it reaches your promise at 12 months. Everything above that line can go into the stock. A drop bigger than the break distance before anyone can trade would break the floor: that is the named risk, and it is why each stock's multiplier comes from its worst day in 10 years.`],
-            ['Why 24/7 trading matters', `A bank desk can only sell when New York is open. Overnight gaps are where it loses. Tokenized stocks trade around the clock on BSC, so the vault can rebalance whenever the price moves.`],
-            ['Where the safe money sits', `Only Venus core and Aave stablecoin markets. Before every move the vault checks cash, how much is lent out (92% at most), pauses and the USDT price feed. If no pool passes, the money waits in USDT.`],
-            ['What you can do any time', `Withdraw at today's value. The vault is a contract only you can withdraw from; the keeper can rebalance or lower risk and nothing else.`],
+            ['Why 24/7 trading matters', `A bank desk can only sell when New York is open. bStocks keep trading at night and at weekends, and some falls happen there: META fell 11% and SanDisk 20% before the next open. The vault can sell during those hours. The same pools also print bad ticks (SPY at $1,086 for an hour against $750), so the vault prices the stock at the lower of a 10-minute and a 60-second average: real falls count within a minute, spikes and one-minute holes do not.`],
+            ['Where the safe money sits', `Only Venus core and Aave stablecoin markets, no CeDeFi, no synthetic dollars, even where the yield is higher. Before every move the vault checks cash, how much is lent out (92% at most), pauses and the USDT price feed. If no pool passes, the money waits in USDT and the floor keeps the last healthy rate for up to 7 days.`],
+            ['What you can do any time', `Withdraw at today's value, or, if a pool or market is not trading, leave with your holdings as they are. The vault is a contract only you can withdraw from. The keeper can rebalance, cut risk at once and raise it back one step per four hours, and nothing else.`],
           ].map(([q, a], i) => (
             <Reveal key={q} delay={i * 80} className={`acc-row ${open === i ? 'open' : ''}`}>
               <button onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
@@ -250,6 +281,10 @@ export function Front() {
         <section className="sources-band">
           <dl className="sources">
             <div><dt>Safe leg now</dt><dd>{market ? <>{market.name}, {pct(market.rate, 2)} a year, {pct(market.utilization)} lent out, {GATE_CODES[market.gateCode]}</> : 'no lending market passes the health gate: funds would wait in USDT'}</dd></div>
+            {defi && defi.length > 0 && <div><dt>Binance DeFi API</dt><dd>
+              USDT earn products on BSC by size: {defi.slice(0, 6).map((d, i) => <span key={d.protocolId + i}>{i ? ', ' : ''}<span className={d.allowed ? '' : 'muted'}>{d.protocol} {pct(d.apy, 2)}</span></span>)}.
+              Plinth uses Venus and Aave only; the others carry risks a floor should not sit on (credit, synthetic dollars, lockups).
+            </dd></div>}
             <div><dt>Floor assumes</dt><dd>{pct(calc.rate, 2)} a year (the safe leg's rate, capped at {pct(live!.maxFloorRate, 0)})</dd></div>
             <div><dt>Multiplier</dt><dd>{stock.cap} for {name}, the highest with no floor breaks over 10 years (read from the factory)</dd></div>
             <div><dt>10-year test</dt><dd>
@@ -355,6 +390,7 @@ export function Footer() {
           <p className="foot-h">On chain</p>
           <a href={`${BSCSCAN}/address/${FACTORY}`}>Factory {short(FACTORY)}</a>
           {keeper && <a href={`${BSCSCAN}/address/${keeper}`}>Keeper {short(keeper)}</a>}
+          <a href={`${RELAY}/api/health`}>Binance Web3 API relay</a>
           <a href={`${BSCSCAN}/address/${DEMO_VAULT}`}>Live vault {short(DEMO_VAULT)}</a>
         </div>
         <div>

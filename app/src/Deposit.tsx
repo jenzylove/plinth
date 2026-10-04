@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Address, Hash } from 'viem';
-import { BSCSCAN } from './chain';
+import { BSCSCAN, openLimits } from './chain';
 import { short, usd } from './format';
 import { approve, hasWallet, openVault, usdtState, usdtUnits, vaultsOf } from './wallet';
 import { connect, useAccount } from './account';
@@ -31,14 +31,11 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
     setMine(await vaultsOf(a));
   };
   useEffect(() => { if (account) { refresh(account).catch(() => {}); setStep('ready'); } }, [account]);
-  // No minimum: once the balance is known, a deposit larger than the wallet holds drops to what it holds.
-  const [fitted, setFitted] = useState(false);
-  useEffect(() => {
-    if (balance === null || fitted) return;
-    setFitted(true);
-    const have = Math.floor((Number(balance) / 1e18) * 100) / 100;
-    if (have > 0 && have < amount) onAmount(have);
-  }, [balance]);
+  // The factory's limits for this stock: the smallest first deposit and the most one vault may hold.
+  const [limits, setLimits] = useState<{ minOpen: number; maxVault: number | null } | null>(null);
+  useEffect(() => { if (stockId !== undefined) openLimits(stockId).then(setLimits).catch(() => setLimits(null)); }, [stockId]);
+  const tooSmall = !!limits && amount < limits.minOpen;
+  const tooBig = !!limits?.maxVault && amount > limits.maxVault;
 
   const run = async (fn: () => Promise<void>) => {
     setError(null);
@@ -57,7 +54,8 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
     setDone(r); await refresh(account!); setStep('done');
   });
 
-  const enough = balance !== null && balance >= want;
+  const hasFunds = balance !== null && balance >= want;
+  const enough = hasFunds && !tooSmall && !tooBig;
   const approved = allowance >= want;
   const busy = connecting || step === 'approving' || step === 'depositing';
 
@@ -92,8 +90,10 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
           )}
         </li>
       </ol>
-      {account && balance === 0n && <p className="fail">This wallet has no USDT on BSC yet. Send any amount of USDT (BEP-20, BNB Smart Chain) to {short(account)}, then come back. There is no minimum.</p>}
-      {account && balance !== null && balance > 0n && !enough && <p className="fail">This wallet has {usd(Number(balance) / 1e18, 2)} USDT on BSC. <button className="linkish" onClick={() => onAmount(Math.floor((Number(balance) / 1e18) * 100) / 100)}>Deposit all of it</button> or lower the amount.</p>}
+      {tooSmall && <p className="fail">The smallest first deposit is {usd(limits!.minOpen, 2)}.</p>}
+      {tooBig && <p className="fail">One vault holds at most {usd(limits!.maxVault!)} for this stock, so a full move to safety takes a few trades of at most $10k each. <button className="linkish" onClick={() => onAmount(limits!.maxVault!)}>Use {usd(limits!.maxVault!)}</button></p>}
+      {account && balance === 0n && <p className="fail">This wallet has no USDT on BSC yet. Send any amount of USDT (BEP-20, BNB Smart Chain) to {short(account)}, then come back. </p>}
+      {account && balance !== null && balance > 0n && !hasFunds && <p className="fail">This wallet has {usd(Number(balance) / 1e18, 2)} USDT on BSC. <button className="linkish" onClick={() => onAmount(Math.floor((Number(balance) / 1e18) * 100) / 100)}>Deposit all of it</button> or lower the amount.</p>}
       {connectError && <p className="fail">{connectError}</p>}
       {error && <p className="fail">{error}</p>}
       {done && (

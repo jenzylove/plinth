@@ -274,8 +274,9 @@ td:first-child { font: 500 15px var(--sans); }
 .replay-fig path { fill: none; stroke-width: 3; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .l-plinth { stroke: var(--red); } .l-bank { stroke: var(--grey); } .l-floor { stroke: var(--ink); stroke-dasharray: 6 6; stroke-width: 1.5 !important; }
 .l-cut { stroke: var(--yellow); stroke-width: 3; }
+.l-cutdesk { stroke: var(--muted); stroke-dasharray: 2 4; }
 .legend { font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 14px 0 0; }
-.k-plinth { color: var(--red); font-weight: 600; } .k-bank { color: var(--muted); } .k-floor { color: var(--ink); } .k-cut { color: var(--muted); }
+.k-plinth { color: var(--red); font-weight: 600; } .k-bank { color: var(--muted); } .k-floor { color: var(--ink); } .k-cut { color: var(--muted); } .k-cutdesk { color: var(--muted); text-decoration: underline dotted; }
 
 /* ---------------------------------------------------------------- small screens */
 @media (max-width: 860px) {
@@ -298,3 +299,5 @@ td:first-child { font: 500 15px var(--sans); }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .reveal { opacity: 1; transform: none; }
 }
+.log li, .sources dd { overflow-wrap: anywhere; }
+.log li > * { min-width: 0; }

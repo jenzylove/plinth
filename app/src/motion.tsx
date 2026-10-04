@@ -27,14 +27,15 @@ export function Reveal({ children, delay = 0, as: Tag = 'div', className = '', s
   );
 }
 
-/** Counts from 0 to `value` once visible, then follows `value` when it changes. */
+/** Shows the real value from the first paint (so a screenshot, a preview or a background tab never reads
+ *  $0), then glides to each new value once visible. */
 export function CountUp({ value, format }: { value: number; format: (x: number) => string }) {
   const [ref, seen] = useInView<HTMLSpanElement>(0.4);
-  const [shown, setShown] = useState(0);
-  const from = useRef(0);
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
   useEffect(() => {
-    if (!seen) return;
-    if (reduced()) { setShown(value); return; }
+    if (!seen || from.current === value) return;
+    if (reduced()) { setShown(value); from.current = value; return; }
     const start = performance.now(), a = from.current, dur = 1100;
     let raf = 0;
     const tick = (t: number) => {
