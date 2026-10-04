@@ -1,9 +1,28 @@
 {
-  "regions": ["sin1"],
-  "functions": { "api/*.js": { "maxDuration": 30 } },
+  "regions": [
+    "sin1"
+  ],
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
-    { "source": "/", "destination": "/api/health" },
-    { "source": "/agent", "destination": "/api/agent?path=" },
-    { "source": "/agent/:path*", "destination": "/api/agent?path=:path*" }
+    {
+      "source": "/",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/agent",
+      "destination": "/api/agent?path="
+    },
+    {
+      "source": "/agent/",
+      "destination": "/api/agent?path="
+    },
+    {
+      "source": "/agent/:path*",
+      "destination": "/api/agent?path=:path*"
+    }
   ]
 }
