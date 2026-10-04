@@ -20,3 +20,11 @@ Date, commit, what now works. Newest last.
 - Landing redesigned to the user's reference (ramos video pin): white canvas, red and yellow, scroll motion. Approved.
 - Relay `/api/vault-log` live (archive RPC server-side): the vault page shows every action.
 - Site live: https://plinth-savings.vercel.app (Vercel project `plinth`, static build of `app/dist`). Checked in headless Chromium against the live domain: chain reads and history load, no console errors.
+
+## 2026-10-04 v2 end to end on a local BSC fork
+- anvil fork of mainnet (Blast public archive RPC, chain id 56). v2 factory deployed with the 20 stocks, keeper = the new Agent Studio wallet 0xB12a1e4e0E22A97E266eD7a6bfc4133F699b1A1b. Two vaults opened: $1,000 NVDA at 100%, $1,000 QQQ at 90%.
+- The Studio agent (`bag dev`, keeper every 20 s) read both vaults and the Web3 API trading status, and did nothing while both sat inside their band.
+- 01:24:28 UTC: 500 QQQB (~$360k) sold into the real PancakeSwap pool, about -10% in one block.
+- 01:24:36 and 01:24:41: the agent's simulated sells were refused ("Too little received") while the 60-second price caught up.
+- 01:25:04: sell sent and mined, $168 of QQQB sold, 36 seconds after the crash. Under v1 (10-minute TWAP only) the same sell stays refused for up to ten minutes (fork test `test_v1Rule_slowPriceAloneCannotSellInACrash`).
+- 01:26:51: the agent pulled both safe legs out of Venus on gate code 4: on a fork the USDT price feed goes stale as time passes, and the gate fails closed. A fork artifact, and the fail-safe working.

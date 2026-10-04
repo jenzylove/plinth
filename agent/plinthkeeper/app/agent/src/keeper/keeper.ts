@@ -1,6 +1,8 @@
 // Copied from packages/keeper/src/keeper.ts by scripts/sync-agent.sh. Edit the original.
 // One keeper pass over every Plinth vault: pull out of unhealthy lending markets, set each vault's
-// multiplier from the event policy, and rebalance vaults whose stock leg drifted outside the band.
+// multiplier from the event policy (cuts at once, raises one step per interval, as the vault allows), and
+// rebalance vaults whose stock leg drifted outside the band, repeating while a big move needs more than
+// one trade.
 // Every write is simulated first; a revert (for example a price check refusing a manipulated pool) is
 // logged and retried on the next pass, never forced.
 import {
@@ -10,10 +12,12 @@ import {
 import { bsc } from 'viem/chains';
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { factoryAbi, vaultAbi } from './abi.js';
-import { decide, needsTrade, type RiskEvent } from './policy.js';
+import { decide, needsTrade, nextMultiplier, type RiskEvent } from './policy.js';
 import { earningsEvents, haltEvents, macroEvents } from './events.js';
 
 const WAD = 10n ** 18n;
+/** Most trades one vault gets in one pass. Each is at most the stock's maxTrade and priced afresh. */
+const MAX_TRADES_PER_PASS = 5;
 const num = (x: bigint, d = 18) => Number(formatUnits(x, d));
 import { stocks, gaps } from './data.js';
 
@@ -65,7 +69,7 @@ export class Keeper {
   private keeperAddress?: Address;
 
   constructor(private readonly cfg: KeeperConfig) {
-    this.pub = createPublicClient({ chain: bsc, transport: http(cfg.rpcUrl) }) as PublicClient;
+    this.pub = createPublicClient({ chain: bsc, transport: http(cfg.rpcUrl), batch: { multicall: true } }) as PublicClient;
     if (cfg.privateKey) {
       // Keys arrive from env; accept them with or without 0x.
       this.account = privateKeyToAccount(cfg.privateKey);
@@ -116,10 +120,9 @@ export class Keeper {
     this.keeperAddress = await this.pub.readContract({ address: this.cfg.factory, abi: factoryAbi, functionName: 'keeper' });
     const count = await this.pub.readContract({ address: this.cfg.factory, abi: factoryAbi, functionName: 'vaultCount' });
     const minTrade = num(await this.pub.readContract({ address: this.cfg.factory, abi: factoryAbi, functionName: 'minTrade' }));
-    const vaults: Address[] = [];
-    for (let i = 0n; i < count; i++) {
-      vaults.push(await this.pub.readContract({ address: this.cfg.factory, abi: factoryAbi, functionName: 'vaults', args: [i] }));
-    }
+    // Batched into multicalls by the client.
+    const vaults: Address[] = await Promise.all(Array.from({ length: Number(count) }, (_, i) =>
+      this.pub.readContract({ address: this.cfg.factory, abi: factoryAbi, functionName: 'vaults', args: [BigInt(i)] })));
 
     const info = await Promise.all(vaults.map(async (v) => {
       const [s, stock] = await Promise.all([
@@ -145,28 +148,36 @@ export class Keeper {
       // 2. Multiplier from the event policy, never above the vault's cap (the contract enforces it too).
       const cap = num(s.cap);
       const want = decide({ symbol, cap, eventCap: this.stocks.eventCap.get(symbol) ?? cap }, ev.events, this.now());
-      const wantWad = BigInt(Math.round(want.multiplier * 10)) * (WAD / 10n);
+      const next = nextMultiplier(num(s.multiplier), want.multiplier, Number(s.nextRaiseAt), this.now());
       let multiplier = s.multiplier;
       // Fail closed: if any event source could not be read, the keeper may lower but not raise.
-      const blindRaise = ev.errors.length > 0 && wantWad > s.multiplier;
-      if (wantWad !== s.multiplier && !blindRaise) {
-        const a = await this.write(v, 'setMultiplier', [wantWad], {
+      const blindRaise = ev.errors.length > 0 && next !== null && next > num(s.multiplier);
+      if (next !== null && !blindRaise) {
+        const nextWad = BigInt(Math.round(next * 10)) * (WAD / 10n);
+        const stepNote = next < want.multiplier ? ` (one step toward ${want.multiplier})` : '';
+        const a = await this.write(v, 'setMultiplier', [nextWad], {
           vault: v, symbol, kind: 'set-multiplier',
-          detail: `${num(s.multiplier)} -> ${want.multiplier}: ${want.reason}`,
+          detail: `${num(s.multiplier)} -> ${next}${stepNote}: ${want.reason}`,
         });
         actions.push(a);
-        if (a.status === 'sent' || a.status === 'would-send') multiplier = wantWad;
+        if (a.status === 'sent' || a.status === 'would-send') multiplier = nextWad;
       }
 
       // 3. Rebalance when the stock leg is outside the band of the target at the multiplier now in force.
-      const cushion = s.total > s.floor ? s.total - s.floor : 0n;
-      let target = (multiplier * cushion) / WAD;
-      if (target > s.total) target = s.total;
-      if (needsTrade(num(s.stockUsd), num(target), num(stock.band), minTrade)) {
-        actions.push(await this.write(v, 'rebalance', [], {
+      // A move bigger than one trade (maxTrade) takes several; each re-reads the vault and is priced afresh.
+      let cur = s;
+      for (let t = 0; t < MAX_TRADES_PER_PASS; t++) {
+        const cushion = cur.total > cur.floor ? cur.total - cur.floor : 0n;
+        let target = (multiplier * cushion) / WAD;
+        if (target > cur.total) target = cur.total;
+        if (!needsTrade(num(cur.stockUsd), num(target), num(stock.band), minTrade)) break;
+        const a = await this.write(v, 'rebalance', [], {
           vault: v, symbol, kind: 'rebalance',
-          detail: `stock $${num(s.stockUsd).toFixed(2)} vs target $${num(target).toFixed(2)}`,
-        }));
+          detail: `stock $${num(cur.stockUsd).toFixed(2)} vs target $${num(target).toFixed(2)}`,
+        });
+        actions.push(a);
+        if (a.status !== 'sent') break;
+        cur = await this.pub.readContract({ address: v, abi: vaultAbi, functionName: 'status' });
       }
     }
 

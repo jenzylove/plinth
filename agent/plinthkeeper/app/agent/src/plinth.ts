@@ -17,12 +17,15 @@ import { bsc } from "viem/chains";
 import { getWallet } from "@bnbagent/studio-runtime/wallet";
 import { Keeper, type Action, type PassReport } from "./keeper/keeper.js";
 
-export const PLINTH_FACTORY = "0x57AB13A70d0BC7983196014b86D632eCAfD4b96f" as const;
+// The live factory; PLINTH_FACTORY overrides it (v1 was 0x57AB13A70d0BC7983196014b86D632eCAfD4b96f).
+export const PLINTH_FACTORY = (process.env.PLINTH_FACTORY || "0x57AB13A70d0BC7983196014b86D632eCAfD4b96f") as Address;
 const RELAY = "https://plinth-relay.vercel.app";
 
 const passes: PassReport[] = [];
 const actions: (Action & { at: string })[] = [];
 const startedAt = new Date().toISOString();
+let passCount = 0;
+let lastPassAt: string | null = null;
 let lastError: string | null = null;
 
 function rpcUrl(): string {
@@ -80,6 +83,8 @@ export function startPlinthKeeper(app: Express): void {
     try {
       const r = await keeper.pass();
       passes.push(r);
+      passCount++;
+      lastPassAt = r.at;
       if (passes.length > 200) passes.shift();
       for (const a of r.actions) actions.push({ ...a, at: r.at });
       if (actions.length > 2000) actions.splice(0, actions.length - 2000);
@@ -103,6 +108,8 @@ export function startPlinthKeeper(app: Express): void {
       factory: PLINTH_FACTORY,
       startedAt,
       intervalSeconds: every / 1000,
+      passes: passCount,
+      lastPassAt,
       dryRun: process.env.KEEPER_DRY_RUN === "1",
       lastError,
       latest: latestPass() ?? null,

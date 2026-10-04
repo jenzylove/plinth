@@ -71,3 +71,11 @@ export function needsTrade(stockUsd: number, target: number, band: number, minTr
   if (d < minTrade) return false;
   return d / target > band;
 }
+
+/** The vault's raise rule (PlinthVault.setMultiplier): cuts apply at once; a raise adds at most `step`
+ *  and only once `nextRaiseAt` has passed. Returns the multiplier to send now, or null to send nothing. */
+export function nextMultiplier(current: number, want: number, nextRaiseAt: number, now: number, step = 1): number | null {
+  if (want < current) return want;
+  if (want === current || now < nextRaiseAt) return null;
+  return Math.min(want, Math.round((current + step) * 1e6) / 1e6);
+}

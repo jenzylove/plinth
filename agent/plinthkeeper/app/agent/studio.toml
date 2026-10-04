@@ -27,7 +27,8 @@ kind = "evm-local"
 signer = "local"
 keystore_dir = "../../.studio/wallets"
 # address = "0x..."   # filled by `bag wallet new`
-address = "0xAd14B65e6D85d8f9705f953e7415B94314AA0603"
+# previous wallet 0xAd14B65e6D85d8f9705f953e7415B94314AA0603 lived only in a cloud container (keystore lost)
+address = "0xB12a1e4e0E22A97E266eD7a6bfc4133F699b1A1b"
 
 [wallet.signing]
 # NodeOps hosting is paid over x402 with a Permit2 witness transfer on BSC. The USDC
@@ -46,7 +47,8 @@ network = "bsc-mainnet"
 # zero-deposit default. `bag llm activate` creates the key with $0
 # allocation; switch to a paid model + `bag llm topup` only when you need it.
 initial_allocation_usd = 0
-key_hash = "d87798114f89ee6a6d7b90472b48c9b33294cd3708c567330476940aff3178cd"
+# key_hash of the lost wallet removed; `bag llm activate` writes the new one
+key_hash = "e73e1afe029ecb6563154140f1d4c1fd23e3418a72017e303da9d0bc972d34af"
 
 [llm.auto_renew]
 # hook auto-allocates from Pieverse Account Balance to the API key when Key
