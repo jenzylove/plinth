@@ -103,6 +103,14 @@ export function startPlinthKeeper(app: Express): void {
   void tick();
   setInterval(() => void tick(), every).unref?.();
 
+  // Hosts probe "/" (and sometimes "/health") for readiness; the A2A runtime only answered "/ping", so "/" was a 404
+  // and a host could wait forever for the agent to be ready.
+  const health = (_req: unknown, res: { json: (b: unknown) => void }) =>
+    res.json({ status: "HEALTHY", agent: "plinth-keeper", keeper: address, card: "/.well-known/agent-card.json", keeperState: "/keeper" });
+  app.get("/", health);
+  app.get("/health", health);
+  app.get("/healthz", health);
+
   app.get("/keeper", (_req, res) => {
     res.json({
       keeper: address,

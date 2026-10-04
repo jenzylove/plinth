@@ -102,21 +102,22 @@ max_per_day_usd = 3.0
 max_per_month_usd = 15.0
 
 [deploy.nodeops]
-# CreateOS hosting paid from the agent's own wallet (no account). Caps below are limits, not a quote.
-mode = "wallet"
+# CreateOS account mode (CREATEOS_API_KEY). Wallet mode paid hosting from the agent's own wallet; see the commented table below.
+mode = "account"
 packaging = "zip"
 port = 9000
 
-[deploy.nodeops.payment]
-protocol = "x402"
-chain = "bsc"
-asset = "USDC"
-months = 1
-max_per_payment_usd = "10.00"
-max_per_day_usd = "10.00"
-max_per_month_usd = "20.00"
-max_approval_gas_wei = "1000000000000000"
-auto_pay = false
-use_existing_credits = false
+# Wallet mode (x402 hosting from the agent's wallet) used this table; account mode (API key) does not.
+# [deploy.nodeops.payment]
+# protocol = "x402"
+# chain = "bsc"
+# asset = "USDC"
+# months = 1
+# max_per_payment_usd = "10.00"
+# max_per_day_usd = "10.00"
+# max_per_month_usd = "20.00"
+# max_approval_gas_wei = "1000000000000000"
+# auto_pay = false
+# use_existing_credits = false
 
 [identity]
