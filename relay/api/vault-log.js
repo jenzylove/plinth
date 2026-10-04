@@ -1,9 +1,9 @@
 // Every action of one Plinth vault, read from BSC event logs with the archive RPC (server-side only).
-// GET /api/vault-log?vault=0x... -> { vault, fromBlock, toBlock, rows: [{ event, block, tx, logIndex, args, detail }] }
+// GET /api/vault-log?vault=0x... -> { vault, fromBlock, toBlock, rows: [{ event, block, time, tx, logIndex, args, detail }] }
 import { createPublicClient, http, parseAbi, isAddress, getAddress, formatUnits } from 'viem';
 import { bsc } from 'viem/chains';
 
-const FACTORY_BLOCK = 124_973_776n; // PlinthFactory 0x57AB…b96f deployed here; no vault is older
+const FACTORY_BLOCK = 124_973_776n; // PlinthFactory v1 0x57AB…b96f deployed here; no vault is older
 const RANGE = 50_000n; // the archive RPC's eth_getLogs limit
 const MARKETS = ['plain USDT', 'Venus', 'Aave'];
 const REASONS = ['within band', 'drift', 'cushion gone', 'below minimum trade'];
@@ -36,6 +36,19 @@ function detail(name, a) {
   }
 }
 
+/** The block the contract at `address` was created in: binary search on its code, from the v1 factory block. */
+async function createdAt(client, address, latest) {
+  const has = async (b) => ((await client.getCode({ address, blockNumber: b })) ?? '0x') !== '0x';
+  if (!(await has(latest))) return null;
+  let lo = FACTORY_BLOCK, hi = latest;
+  if (await has(lo)) return lo;
+  while (hi - lo > 1n) {
+    const mid = (lo + hi) / 2n;
+    if (await has(mid)) hi = mid; else lo = mid;
+  }
+  return hi;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const vault = String(req.query.vault || '');
@@ -45,22 +58,27 @@ export default async function handler(req, res) {
   try {
     const client = createPublicClient({ chain: bsc, transport: http(rpc) });
     const latest = await client.getBlockNumber();
+    const start = await createdAt(client, getAddress(vault), latest);
+    if (start === null) return res.status(404).json({ error: 'no contract at this address' });
     const chunks = [];
-    for (let from = FACTORY_BLOCK; from <= latest; from += RANGE) {
+    for (let from = start; from <= latest; from += RANGE) {
       const to = from + RANGE - 1n < latest ? from + RANGE - 1n : latest;
       chunks.push(client.getContractEvents({ address: getAddress(vault), abi, fromBlock: from, toBlock: to }));
     }
     const logs = (await Promise.all(chunks)).flat();
+    const blocks = [...new Set(logs.map((l) => l.blockNumber))];
+    const times = new Map(await Promise.all(blocks.map(async (b) => [b, Number((await client.getBlock({ blockNumber: b })).timestamp)])));
     const rows = logs.map((l) => ({
       event: l.eventName,
       block: Number(l.blockNumber),
+      time: times.get(l.blockNumber),
       tx: l.transactionHash,
       logIndex: l.logIndex,
       args: JSON.parse(JSON.stringify(l.args, (_, v) => (typeof v === 'bigint' ? v.toString() : v))),
       detail: detail(l.eventName, l.args),
     })).reverse();
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
-    return res.status(200).json({ vault: getAddress(vault), fromBlock: Number(FACTORY_BLOCK), toBlock: Number(latest), rows });
+    return res.status(200).json({ vault: getAddress(vault), fromBlock: Number(start), toBlock: Number(latest), rows });
   } catch (e) {
     return res.status(502).json({ error: 'could not read logs: ' + (e.shortMessage || e.message) });
   }
