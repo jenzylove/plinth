@@ -18,3 +18,16 @@
 | Break distance | 17.2% |
 
 **Verdict.** Pass. The Agentic Wallet is a working deposit rail: two previewed contract-calls, simulation showed the exact balance and allowance changes, no risk flags, and the vault bought NVDAB and lent the rest to Venus in the same transaction.
+
+## v2: withdraw, deposit and withdraw again (2026-10-04, BSC mainnet)
+
+All from the same Agentic Wallet 0x79B2FC7d94b621C464DC8996d83B19F43613e2Fd with `baw` 1.10, each a Developer Mode `contract-call preview` (Binance simulation with exact balance and allowance changes, no risk flags) then `execute`.
+
+| Step | Call | Simulated change | Tx |
+|---|---|---|---|
+| 1 | v1 vault `withdraw(1e18)` (leave everything) | +10.0438 USDT | [0x797a2ff4…dc5d](https://bscscan.com/tx/0x797a2ff49e6c856634d33512e23b81ea92aeacb252fbd3c1b2483229b805dc5d) |
+| 2 | USDT `approve(v2 factory, 11e18)` | allowance 0 → 11 | [0xd3e4bc7b…af8e](https://bscscan.com/tx/0xd3e4bc7b4c65a370b89240231fcc317602359683ad6cb970b94a676789c4af8e) |
+| 3 | v2 factory `open(12 /*NVDA*/, 9000 /*90% floor*/, 11e18)` | -11 USDT | [0xfd9dd73d…81e1](https://bscscan.com/tx/0xfd9dd73d01028b8b7ecb76d6c75a87199516573fec5ee2d49db13db68b9581e1) |
+| 4 | v2 vault `withdraw(0.25e18)` | +2.7480 USDT | [0x56dbeb08…dcb9](https://bscscan.com/tx/0x56dbeb086b38fe1e3645b18b1a167aa9f6721bae3e87f17e2cbfbf06adc5dcb9) |
+
+v2 vault [0x18B9c043e7D4a17c1a034e97C826984dEb1cadFb](https://bscscan.com/address/0x18B9c043e7D4a17c1a034e97C826984dEb1cadFb), right after opening: value $10.99, $8.07 in NVDAB, $2.93 in Venus at 3.30%, floor $9.58, break distance 17.5%, multiplier 5.7. After the 25% withdrawal: $8.25, $6.05 in NVDAB. It is the site's live demo vault; at the 90% floor a 5.7 to 4.2 risk cut sells about $1.60 of stock, above the $1 minimum trade, so the keeper's cuts trade on chain.

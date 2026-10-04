@@ -7,7 +7,7 @@ export const FACTORY_V1: Address = '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f';
 export const FACTORY: Address = (import.meta.env.VITE_FACTORY as Address | undefined) ?? '0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906';
 export const USDT: Address = '0x55d398326f99059fF775485246999027B3197955';
 export const VENUS_ORACLE: Address = '0x6592b5DE802159F3E74B2486b091D11a8256ab8A';
-export const DEMO_VAULT: Address = (import.meta.env.VITE_DEMO_VAULT as Address | undefined) ?? '0x7285CF07Cb75C4FC5065eC3a72a3ec52A5f12095';
+export const DEMO_VAULT: Address = (import.meta.env.VITE_DEMO_VAULT as Address | undefined) ?? '0x18B9c043e7D4a17c1a034e97C826984dEb1cadFb';
 export const RELAY = 'https://plinth-relay.vercel.app';
 export const BSCSCAN = 'https://bscscan.com';
 
