@@ -43,6 +43,8 @@ export interface Action {
   tx?: Hex;
   status: 'sent' | 'would-send' | 'simulation-reverted' | 'failed';
   error?: string;
+  /** The Binance Web3 API's own simulation of this call (Transaction API), run before sending. */
+  web3Simulation?: string;
 }
 
 export interface PassReport {
@@ -101,17 +103,42 @@ export class Keeper {
     } catch (e) {
       return { ...a, status: 'simulation-reverted', error: (e as any).shortMessage ?? String(e) };
     }
+    // Second opinion from the Binance Web3 API's Transaction API. A FAIL there blocks the send; if the API
+    // cannot be reached the on-chain simulation above stands, and the action records that.
+    const data = encodeFunctionData({ abi: vaultAbi, functionName: fn as any, args: args as any });
+    const web3Simulation = await this.web3Simulate(from!, vault, data);
+    if (web3Simulation.startsWith('FAIL')) return { ...a, status: 'simulation-reverted', web3Simulation, error: web3Simulation };
     const canSend = this.cfg.sender || (this.wallet && this.account);
-    if (this.cfg.dryRun || !canSend) return { ...a, status: 'would-send' };
+    if (this.cfg.dryRun || !canSend) return { ...a, status: 'would-send', web3Simulation };
     try {
-      const data = encodeFunctionData({ abi: vaultAbi, functionName: fn as any, args: args as any });
       const tx = this.cfg.sender
         ? await this.cfg.sender.send({ to: vault, data })
         : await this.wallet!.sendTransaction({ to: vault, data, account: this.account!, chain: bsc });
       const r = await this.pub.waitForTransactionReceipt({ hash: tx, timeout: 60_000 });
-      return { ...a, tx, status: r.status === 'success' ? 'sent' : 'failed' };
+      return { ...a, tx, status: r.status === 'success' ? 'sent' : 'failed', web3Simulation };
     } catch (e) {
-      return { ...a, status: 'failed', error: (e as any).shortMessage ?? String(e) };
+      return { ...a, status: 'failed', error: (e as any).shortMessage ?? String(e), web3Simulation };
+    }
+  }
+
+  /** POST /api/v1/dex/pre-transaction/simulate through the relay. Returns 'SUCCESS', 'FAIL: <reason>' or
+   *  'unavailable: <reason>'. */
+  private async web3Simulate(from: Address, to: Address, data: Hex): Promise<string> {
+    try {
+      const r = await fetch(`${this.cfg.relay}/api/web3`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          path: '/api/v1/dex/pre-transaction/simulate',
+          body: { binanceChainId: '56', evmTx: { from, to, value: '0', data } },
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const j: any = await r.json();
+      if (j?.code !== 0) return `unavailable: ${j?.code ?? r.status} ${j?.msg ?? j?.error ?? ''}`.trim();
+      return j.data?.status === 'SUCCESS' ? 'SUCCESS' : `FAIL: ${j.data?.failReason || j.data?.status}`;
+    } catch (e) {
+      return `unavailable: ${(e as Error).message}`;
     }
   }
 
