@@ -2,9 +2,9 @@
 import { createPublicClient, fallback, http, parseAbi, type Address } from 'viem';
 import { bsc } from 'viem/chains';
 
-// The live factory and demo vault come from the build env (VITE_FACTORY, VITE_DEMO_VAULT); v1 is the fallback.
+// The live factory (v2) and demo vault; VITE_FACTORY and VITE_DEMO_VAULT override them at build time.
 export const FACTORY_V1: Address = '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f';
-export const FACTORY: Address = (import.meta.env.VITE_FACTORY as Address | undefined) ?? FACTORY_V1;
+export const FACTORY: Address = (import.meta.env.VITE_FACTORY as Address | undefined) ?? '0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906';
 export const USDT: Address = '0x55d398326f99059fF775485246999027B3197955';
 export const VENUS_ORACLE: Address = '0x6592b5DE802159F3E74B2486b091D11a8256ab8A';
 export const DEMO_VAULT: Address = (import.meta.env.VITE_DEMO_VAULT as Address | undefined) ?? '0x7285CF07Cb75C4FC5065eC3a72a3ec52A5f12095';
@@ -21,7 +21,7 @@ const WAD = 10n ** 18n;
 export const fromWad = (x: bigint) => Number(x) / 1e18;
 
 export const factoryAbi = parseAbi([
-  'struct StockConfig { address token; address pool; address router; uint24 fee; bool pancake; bool venusPriced; uint32 twapWindow; uint64 cap; uint64 band; uint64 maxSlippage; }',
+  'struct StockConfig { address token; address pool; address router; uint24 fee; bool pancake; bool venusPriced; uint32 twapWindow; uint64 cap; uint64 band; uint64 maxSlippage; uint32 fastWindow; uint128 maxTrade; uint128 maxVault; }',
   'struct Market { uint8 kind; address target; address receipt; address debt; }',
   'struct GateLimits { uint64 minCashMultiple; uint64 maxUtilization; uint64 maxPegDeviation; }',
   'function stockCount() view returns (uint256)',

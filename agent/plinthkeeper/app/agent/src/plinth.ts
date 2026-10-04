@@ -18,7 +18,7 @@ import { getWallet } from "@bnbagent/studio-runtime/wallet";
 import { Keeper, type Action, type PassReport } from "./keeper/keeper.js";
 
 // The live factory; PLINTH_FACTORY overrides it (v1 was 0x57AB13A70d0BC7983196014b86D632eCAfD4b96f).
-export const PLINTH_FACTORY = (process.env.PLINTH_FACTORY || "0x57AB13A70d0BC7983196014b86D632eCAfD4b96f") as Address;
+export const PLINTH_FACTORY = (process.env.PLINTH_FACTORY || "0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906") as Address;
 const RELAY = "https://plinth-relay.vercel.app";
 
 const passes: PassReport[] = [];

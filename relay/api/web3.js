@@ -31,7 +31,7 @@ const POST_PATHS = new Set([
   '/api/v1/dex/pre-transaction/simulate',
 ]);
 // Factories whose contracts (the factory itself and the vaults it opened) may be simulated.
-const FACTORIES = (process.env.PLINTH_FACTORIES || '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f')
+const FACTORIES = (process.env.PLINTH_FACTORIES || '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f,0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906')
   .split(',').map((a) => a.trim().toLowerCase()).filter(Boolean);
 const RATE_LIMIT = 120;
 

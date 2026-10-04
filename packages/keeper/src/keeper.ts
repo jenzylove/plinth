@@ -174,7 +174,11 @@ export class Keeper {
       // 2. Multiplier from the event policy, never above the vault's cap (the contract enforces it too).
       const cap = num(s.cap);
       const want = decide({ symbol, cap, eventCap: this.stocks.eventCap.get(symbol) ?? cap }, ev.events, this.now());
-      const next = nextMultiplier(num(s.multiplier), want.multiplier, Number(s.nextRaiseAt), this.now());
+      // A backup keeper (any wallet that is not the factory's keeper) makes only the calls anyone may make:
+      // pull-outs and rebalances. Multipliers are the keeper's job alone.
+      const me = this.cfg.sender?.address ?? this.account?.address;
+      const isKeeper = !!me && !!this.keeperAddress && me.toLowerCase() === this.keeperAddress.toLowerCase();
+      const next = isKeeper || !me ? nextMultiplier(num(s.multiplier), want.multiplier, Number(s.nextRaiseAt), this.now()) : null;
       let multiplier = s.multiplier;
       // Fail closed: if any event source could not be read, the keeper may lower but not raise.
       const blindRaise = ev.errors.length > 0 && next !== null && next > num(s.multiplier);
