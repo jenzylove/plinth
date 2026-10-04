@@ -1,0 +1,512 @@
+{
+ "generated": "2026-10-04T01:10:05.580Z",
+ "source": "Binance Web3 API /api/v1/dex/market/rwa/kline, bar=1h, BSC (chain 56), through plinth-relay (sin1)",
+ "bars": "bstock-hourly-2026-10-04.json",
+ "config": {
+  "deposit": 1000,
+  "promise": "100%",
+  "rate": 0.035,
+  "costPerTrade": 0.003,
+  "band": 0.1,
+  "slippage": 0.015,
+  "skipFirstHours": 24,
+  "multiplier": "each stock's cap"
+ },
+ "rule": "Same vault, same prices. always-on may rebalance at any hourly close; desk only at closes inside the NYSE session; naiveAlwaysOn trades at the raw close with no price rule. Margin is measured at each bar's low, before anyone can act.",
+ "totals": {
+  "stocks": 19,
+  "alwaysOnHoursBelowFloor": 1,
+  "deskHoursBelowFloor": 1,
+  "alwaysOnCloserToFloorCount": 6,
+  "alwaysOnEndAhead": 10,
+  "meanEndDiff": 0.56,
+  "meanMinMarginDiff": 0.32,
+  "naiveStocksBelowFloor": [
+   "SNDK",
+   "SPY"
+  ],
+  "naiveWorstEnd": 843.23
+ },
+ "stocks": [
+  {
+   "sym": "AAPL",
+   "cap": 6,
+   "hours": 1567,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 16.16,
+    "end": 998.28,
+    "trades": 17,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 13.39,
+    "end": 993.26,
+    "trades": 17,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 15.79,
+    "end": 996.96,
+    "trades": 23,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "AMZN",
+   "cap": 6,
+   "hours": 1064,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 10.68,
+    "end": 984.5,
+    "trades": 21,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 11.15,
+    "end": 984.94,
+    "trades": 15,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 10.69,
+    "end": 984.5,
+    "trades": 21,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "BABA",
+   "cap": 6,
+   "hours": 1449,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 7.61,
+    "end": 981.07,
+    "trades": 46,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 8.62,
+    "end": 982.11,
+    "trades": 30,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 6.55,
+    "end": 980.12,
+    "trades": 64,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "CRCL",
+   "cap": 3,
+   "hours": 2211,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 9.98,
+    "end": 997.02,
+    "trades": 44,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 9.6,
+    "end": 996.81,
+    "trades": 34,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 9.9,
+    "end": 994.92,
+    "trades": 57,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "GME",
+   "cap": 1.7,
+   "hours": 1238,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 29.77,
+    "end": 1025.8,
+    "trades": 2,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 29.77,
+    "end": 1025.8,
+    "trades": 2,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 29.77,
+    "end": 1025.8,
+    "trades": 2,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "GOOGL",
+   "cap": 6,
+   "hours": 1672,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 17.35,
+    "end": 994.56,
+    "trades": 30,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 14.92,
+    "end": 991.79,
+    "trades": 23,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 17.29,
+    "end": 994.49,
+    "trades": 33,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "HOOD",
+   "cap": 4.2,
+   "hours": 1512,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 14.86,
+    "end": 1000.78,
+    "trades": 42,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 14.82,
+    "end": 998.84,
+    "trades": 33,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 15.15,
+    "end": 999.26,
+    "trades": 54,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "INTC",
+   "cap": 3.3,
+   "hours": 1724,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 4.84,
+    "end": 987.83,
+    "trades": 53,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 4.94,
+    "end": 988.53,
+    "trades": 40,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 4.8,
+    "end": 987.68,
+    "trades": 60,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "META",
+   "cap": 3.9,
+   "hours": 1250,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 13.08,
+    "end": 1012.77,
+    "trades": 16,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 12.68,
+    "end": 1010.07,
+    "trades": 15,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 13.08,
+    "end": 1011.8,
+    "trades": 19,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "MSFT",
+   "cap": 6,
+   "hours": 1756,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 28.83,
+    "end": 1105.66,
+    "trades": 26,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 28.85,
+    "end": 1099.89,
+    "trades": 23,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 28.82,
+    "end": 1099.32,
+    "trades": 29,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "MSTR",
+   "cap": 3.2,
+   "hours": 1552,
+   "excluded": true,
+   "alwaysOn": {
+    "minMargin": 15.52,
+    "end": 1043.02,
+    "trades": 36,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 14.46,
+    "end": 1039.6,
+    "trades": 29,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 15.34,
+    "end": 1040.59,
+    "trades": 46,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "NFLX",
+   "cap": 3.5,
+   "hours": 1027,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 19.28,
+    "end": 991,
+    "trades": 9,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 19.24,
+    "end": 991,
+    "trades": 8,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 19.28,
+    "end": 991.36,
+    "trades": 9,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "NVDA",
+   "cap": 5.7,
+   "hours": 2491,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 15.38,
+    "end": 1009.44,
+    "trades": 48,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 15.53,
+    "end": 1008.48,
+    "trades": 42,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 13.4,
+    "end": 1004.67,
+    "trades": 68,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "QQQ",
+   "cap": 6,
+   "hours": 2238,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": -19.93,
+    "end": 995.95,
+    "trades": 21,
+    "hoursBelowFloor": 1
+   },
+   "desk": {
+    "minMargin": -21.16,
+    "end": 1002.89,
+    "trades": 17,
+    "hoursBelowFloor": 1
+   },
+   "naiveAlwaysOn": {
+    "minMargin": -19.94,
+    "end": 991.54,
+    "trades": 24,
+    "hoursBelowFloor": 1
+   }
+  },
+  {
+   "sym": "SKHY",
+   "cap": 6,
+   "hours": 1936,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 0.37,
+    "end": 975.72,
+    "trades": 104,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 0.35,
+    "end": 977.27,
+    "trades": 69,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 0.33,
+    "end": 975.63,
+    "trades": 132,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "SNDK",
+   "cap": 3,
+   "hours": 2104,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 1.78,
+    "end": 982.37,
+    "trades": 77,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 1.71,
+    "end": 981.87,
+    "trades": 50,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": -85.19,
+    "end": 891.22,
+    "trades": 83,
+    "hoursBelowFloor": 384
+   }
+  },
+  {
+   "sym": "SPCX",
+   "cap": 3,
+   "hours": 2695,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 5.82,
+    "end": 992.63,
+    "trades": 38,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 5.8,
+    "end": 992.58,
+    "trades": 33,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 5.31,
+    "end": 991.23,
+    "trades": 47,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "SPY",
+   "cap": 6,
+   "hours": 2066,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 14.37,
+    "end": 1008.71,
+    "trades": 9,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 14.37,
+    "end": 1010.74,
+    "trades": 5,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": -134.31,
+    "end": 843.23,
+    "trades": 5,
+    "hoursBelowFloor": 1481
+   }
+  },
+  {
+   "sym": "TSLA",
+   "cap": 5.1,
+   "hours": 2444,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 0.67,
+    "end": 985.98,
+    "trades": 56,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 0.28,
+    "end": 982.15,
+    "trades": 50,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 0.58,
+    "end": 983.69,
+    "trades": 68,
+    "hoursBelowFloor": 0
+   }
+  },
+  {
+   "sym": "TSM",
+   "cap": 6,
+   "hours": 1202,
+   "excluded": false,
+   "alwaysOn": {
+    "minMargin": 21.22,
+    "end": 1034.65,
+    "trades": 26,
+    "hoursBelowFloor": 0
+   },
+   "desk": {
+    "minMargin": 21.27,
+    "end": 1035.04,
+    "trades": 22,
+    "hoursBelowFloor": 0
+   },
+   "naiveAlwaysOn": {
+    "minMargin": 20.97,
+    "end": 1030.12,
+    "trades": 32,
+    "hoursBelowFloor": 0
+   }
+  }
+ ]
+}

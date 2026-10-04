@@ -157,8 +157,9 @@ contract ReplayLabTest is Test {
                 vm.prank(keeper);
                 v.setMultiplier(ms[k]);
             } else if (ms[k] > cur && vm.getBlockTimestamp() >= v.lastRaiseAt() + v.RAISE_INTERVAL()) {
+                uint256 next = _min(ms[k], cur + v.RAISE_STEP());
                 vm.prank(keeper);
-                v.setMultiplier(_min(ms[k], cur + v.RAISE_STEP()));
+                v.setMultiplier(next);
             }
             try v.rebalance() {} catch {}
 
