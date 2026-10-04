@@ -69,7 +69,7 @@ allowed_payment_tokens = ["U","USD1","USDC","USDT"]
 
 [payments.seller]
 # 所有 Seller rail 与已配置资产共用同一个 USD 标价；"0" 表示 FREE。
-price_usd = "0"
+price_usd = "0.01"
 # 使用当前网络的 canonical AssetId；顺序会保留，允许改为任意非空子集。
 # 这里只列出当前 ERC-8183 合约栈能托管的资产。要卖更多币种，需要指向
 # 支持多 token 的部署（同时设置三个 ERC8183_*_ADDRESS），再把资产加回来。
@@ -79,7 +79,7 @@ assets = ["U","USD1","BINANCE_PEG_USDC","BINANCE_PEG_USDT"]
 # Seller 价格与资产来自 [payments.seller]；本表只保留 ERC-8183 行为参数。
 enabled = true
 quote_ttl_seconds = 900                        # seconds a signed quote stays valid; SDK caps at 900 (~15min work window)
-default_estimated_completion_seconds = 600
+default_estimated_completion_seconds = 3600
 poll_interval_seconds = 30
 auto_settle = false                            # opt-in: detect dispute-window-elapsed → settle
 
@@ -118,3 +118,5 @@ max_per_month_usd = "20.00"
 max_approval_gas_wei = "1000000000000000"
 auto_pay = false
 use_existing_credits = false
+
+[identity]

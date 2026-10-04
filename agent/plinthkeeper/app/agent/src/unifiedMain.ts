@@ -103,7 +103,7 @@ import {
 } from "./requestLimits.js";
 import type { RunWork } from "./sellerCore.js";
 import { LLM_READ_TOOLS } from "./tools.js";
-import { keeperContext, startPlinthKeeper } from "./plinth.js";
+import { keeperContext, startPlinthKeeper, vaultReport } from "./plinth.js";
 
 const APP_NAME = "agent";
 
@@ -198,6 +198,9 @@ export function buildRunWork(): RunWork {
   // the LLM) — missing-key errors surface at notify_funded delivery time.
   let model: ReturnType<typeof buildModel> | undefined;
   return async (prompt, { abortSignal }) => {
+    // Plinth's deliverable is a vault report read from chain: deterministic, no model in the loop. The model
+    // path below stays for any task that is not about vaults.
+    if (/vault|plinth|keeper/i.test(prompt)) return vaultReport(prompt);
     model ??= buildModel(); // managed model with the auto-renew hook (delivery only)
     const result = await generateText({
       model,

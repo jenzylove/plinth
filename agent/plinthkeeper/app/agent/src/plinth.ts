@@ -16,6 +16,7 @@ import { createPublicClient, http, type Address, type Hex } from "viem";
 import { bsc } from "viem/chains";
 import { getWallet } from "@bnbagent/studio-runtime/wallet";
 import { Keeper, type Action, type PassReport } from "./keeper/keeper.js";
+import { factoryAbi, vaultAbi } from "./keeper/abi.js";
 
 // The live factory; PLINTH_FACTORY overrides it (v1 was 0x57AB13A70d0BC7983196014b86D632eCAfD4b96f).
 export const PLINTH_FACTORY = (process.env.PLINTH_FACTORY || "0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906") as Address;
@@ -119,4 +120,54 @@ export function startPlinthKeeper(app: Express): void {
     res.json({ keeper: address, actions: [...actions].reverse() });
   });
   console.log(`[plinth-keeper] started for ${address}, every ${every / 1000}s`);
+}
+
+const MARKETS = ["plain USDT", "Venus", "Aave"];
+const wad = (x: bigint) => Number(x) / 1e18;
+
+/**
+ * The ERC-8183 deliverable: a vault report read from BSC mainnet at delivery time, plus the keeper's own latest
+ * pass and recent actions. Deterministic: no model writes any number. Vaults named in the task (0x... addresses
+ * opened by this factory) are reported; with none named, every vault is.
+ */
+export async function vaultReport(task: string): Promise<string> {
+  const pub = createPublicClient({ chain: bsc, transport: http(rpcUrl()) });
+  const named = [...new Set((task.match(/0x[0-9a-fA-F]{40}/g) ?? []).map((a) => a.toLowerCase()))];
+  const count = await pub.readContract({ address: PLINTH_FACTORY, abi: factoryAbi, functionName: "vaultCount" });
+  const all = await Promise.all(Array.from({ length: Number(count) }, (_, i) =>
+    pub.readContract({ address: PLINTH_FACTORY, abi: factoryAbi, functionName: "vaults", args: [BigInt(i)] })));
+  const chosen = named.length ? all.filter((v) => named.includes(v.toLowerCase())) : all;
+  const block = await pub.getBlockNumber();
+  const vaults = await Promise.all(chosen.map(async (v) => {
+    const [s, saver] = await Promise.all([
+      pub.readContract({ address: v, abi: vaultAbi, functionName: "status" }),
+      pub.readContract({ address: v, abi: vaultAbi, functionName: "saver" }),
+    ]);
+    return {
+      vault: v, saver,
+      valueUsd: +wad(s.total).toFixed(4), floorUsd: +wad(s.floor).toFixed(4), promisedUsd: +wad(s.promised).toFixed(4),
+      maturity: new Date(Number(s.maturity) * 1000).toISOString(),
+      stockUsd: +wad(s.stockUsd).toFixed(4), safeUsd: +wad(s.safeUsd).toFixed(4),
+      breakDistance: s.breakDistance > 10n ** 30n ? null : +wad(s.breakDistance).toFixed(4),
+      multiplier: wad(s.multiplier), cap: wad(s.cap),
+      price: { used: wad(s.price), slow: wad(s.slowPrice), fast: wad(s.fastPrice) },
+      safeLeg: { market: MARKETS[Number(s.marketIndex)] ?? `market ${s.marketIndex}`, floorRate: wad(s.floorRate), gateCode: s.gateCode },
+      // null: a raise is allowed now (none yet, or the interval has passed).
+      nextRaiseAt: Number(s.nextRaiseAt) * 1000 > Date.now() ? new Date(Number(s.nextRaiseAt) * 1000).toISOString() : null,
+    };
+  }));
+  const p = latestPass();
+  const mine = new Set(chosen.map((v) => v.toLowerCase()));
+  return JSON.stringify({
+    report: "Plinth vault report",
+    readAt: new Date().toISOString(), block: block.toString(), chainId: 56, factory: PLINTH_FACTORY,
+    notFound: named.filter((a) => !all.some((v) => v.toLowerCase() === a)),
+    vaults,
+    keeper: {
+      latestPass: p ? { at: p.at, block: p.block, statuses: p.statuses, events: p.events, sourceErrors: p.errors } : null,
+      recentActions: actions.filter((a) => mine.has(a.vault.toLowerCase())).slice(-20)
+        .map((a) => ({ at: a.at, kind: a.kind, status: a.status, detail: a.detail, tx: a.tx ?? null, web3Simulation: a.web3Simulation ?? null })),
+    },
+    note: "Every number is read from BSC mainnet at readAt. The floor is defended, not guaranteed.",
+  }, null, 1);
 }
