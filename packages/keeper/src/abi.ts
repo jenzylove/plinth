@@ -1301,6 +1301,20 @@ export const vaultAbi = [
  },
  {
   "type": "function",
+  "name": "beginExit",
+  "inputs": [],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
+  "name": "cancelExit",
+  "inputs": [],
+  "outputs": [],
+  "stateMutability": "nonpayable"
+ },
+ {
+  "type": "function",
   "name": "cap",
   "inputs": [],
   "outputs": [
@@ -1353,6 +1367,45 @@ export const vaultAbi = [
  },
  {
   "type": "function",
+  "name": "effectiveMultiplier",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "excess",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "uint256",
+    "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "exiting",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
   "name": "factory",
   "inputs": [],
   "outputs": [
@@ -1373,6 +1426,19 @@ export const vaultAbi = [
     "name": "",
     "type": "uint256",
     "internalType": "uint256"
+   }
+  ],
+  "stateMutability": "view"
+ },
+ {
+  "type": "function",
+  "name": "impaired",
+  "inputs": [],
+  "outputs": [
+   {
+    "name": "",
+    "type": "bool",
+    "internalType": "bool"
    }
   ],
   "stateMutability": "view"
@@ -1732,6 +1798,21 @@ export const vaultAbi = [
       "name": "idleSince",
       "type": "uint256",
       "internalType": "uint256"
+     },
+     {
+      "name": "excess",
+      "type": "uint256",
+      "internalType": "uint256"
+     },
+     {
+      "name": "impaired",
+      "type": "bool",
+      "internalType": "bool"
+     },
+     {
+      "name": "exiting",
+      "type": "bool",
+      "internalType": "bool"
      }
     ]
    }
@@ -1922,6 +2003,56 @@ export const vaultAbi = [
  },
  {
   "type": "event",
+  "name": "ExitCancelled",
+  "inputs": [],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "ExitStarted",
+  "inputs": [],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "HeldAside",
+  "inputs": [
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "excess",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Impaired",
+  "inputs": [
+   {
+    "name": "marketIndex",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "gateCode",
+    "type": "uint8",
+    "indexed": false,
+    "internalType": "uint8"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
   "name": "Initialized",
   "inputs": [
    {
@@ -2066,6 +2197,50 @@ export const vaultAbi = [
  },
  {
   "type": "event",
+  "name": "SupplyRefused",
+  "inputs": [
+   {
+    "name": "marketIndex",
+    "type": "uint256",
+    "indexed": true,
+    "internalType": "uint256"
+   },
+   {
+    "name": "amount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
+  "name": "Traded",
+  "inputs": [
+   {
+    "name": "buy",
+    "type": "bool",
+    "indexed": false,
+    "internalType": "bool"
+   },
+   {
+    "name": "usdtAmount",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   },
+   {
+    "name": "tokens",
+    "type": "uint256",
+    "indexed": false,
+    "internalType": "uint256"
+   }
+  ],
+  "anonymous": false
+ },
+ {
+  "type": "event",
   "name": "Withdrawn",
   "inputs": [
    {
@@ -2201,6 +2376,11 @@ export const vaultAbi = [
     "internalType": "address"
    }
   ]
+ },
+ {
+  "type": "error",
+  "name": "UseStagedExit",
+  "inputs": []
  }
 ] as const;
 

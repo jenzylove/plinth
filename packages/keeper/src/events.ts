@@ -4,6 +4,9 @@ import type { RiskEvent } from './policy.js';
 
 import { macro } from './data.js';
 
+/** No single source may hold up a pass: every request gives up after this long. */
+const FETCH_DEADLINE_MS = 8_000;
+
 /** Scheduled US macro releases (BLS, Federal Reserve), from data/macro-2026.json. */
 export function macroEvents(): RiskEvent[] {
   return macro.map((e) => ({ kind: e.kind, name: e.name, at: Date.parse(e.at) / 1000 }));
@@ -20,11 +23,12 @@ export async function earningsEvents(symbols: string[], days: Date[]): Promise<{
   const events: RiskEvent[] = [];
   const errors: string[] = [];
   const want = new Set(symbols);
-  for (const d of days) {
+  await Promise.all(days.map(async (d) => {
     const date = d.toISOString().slice(0, 10);
     try {
       const r = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${date}`, {
         headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+        signal: AbortSignal.timeout(FETCH_DEADLINE_MS),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j: any = await r.json();
@@ -41,7 +45,7 @@ export async function earningsEvents(symbols: string[], days: Date[]): Promise<{
     } catch (e) {
       errors.push(`earnings ${date}: ${(e as Error).message}`);
     }
-  }
+  }));
   return { events, errors };
 }
 
@@ -54,14 +58,14 @@ export async function haltEvents(
   const statuses: Record<string, string> = {};
   const errors: string[] = [];
   const now = Math.floor(Date.now() / 1000);
-  for (const s of stocks) {
+  await Promise.all(stocks.map(async (s) => {
     try {
       const q = new URLSearchParams({
         path: '/api/v1/dex/market/rwa/underlying-market',
         binanceChainId: '56',
         tokenContractAddress: s.token.toLowerCase(),
       });
-      const r = await fetch(`${relay}/api/web3?${q}`);
+      const r = await fetch(`${relay}/api/web3?${q}`, { signal: AbortSignal.timeout(FETCH_DEADLINE_MS) });
       const j: any = await r.json();
       if (j.code !== 0) throw new Error(`code ${j.code} ${j.msg ?? ''}`);
       const st = j.data?.statusInfo ?? {};
@@ -74,6 +78,6 @@ export async function haltEvents(
     } catch (e) {
       errors.push(`status ${s.symbol}: ${(e as Error).message}`);
     }
-  }
+  }));
   return { events, statuses, errors };
 }

@@ -31,3 +31,13 @@ All from the same Agentic Wallet 0x79B2FC7d94b621C464DC8996d83B19F43613e2Fd with
 | 4 | v2 vault `withdraw(0.25e18)` | +2.7480 USDT | [0x56dbeb08…dcb9](https://bscscan.com/tx/0x56dbeb086b38fe1e3645b18b1a167aa9f6721bae3e87f17e2cbfbf06adc5dcb9) |
 
 v2 vault [0x18B9c043e7D4a17c1a034e97C826984dEb1cadFb](https://bscscan.com/address/0x18B9c043e7D4a17c1a034e97C826984dEb1cadFb), right after opening: value $10.99, $8.07 in NVDAB, $2.93 in Venus at 3.30%, floor $9.58, break distance 17.5%, multiplier 5.7. After the 25% withdrawal: $8.25, $6.05 in NVDAB. It is the site's live demo vault; at the 90% floor a 5.7 to 4.2 risk cut sells about $1.60 of stock, above the $1 minimum trade, so the keeper's cuts trade on chain.
+
+## Migration to v3 (2026-10-05)
+
+| Step | Call | Tx |
+|---|---|---|
+| 1 | v2 vault `withdraw(1e18)` (+8.26 USDT) | [0x3f33b00d…9ba6](https://bscscan.com/tx/0x3f33b00d312500388f30825c37bf12e9e120a9522ecb5e0843afa602241e9ba6) |
+| 2 | USDT `approve(v3 factory, 11e18)` | [0xb6eaf80e…dd34](https://bscscan.com/tx/0xb6eaf80e537bd17e6529a7d96db2bc9096c8b67877ce15c18fd6077d5919dd34) |
+| 3 | v3 factory `open(12 /*NVDA*/, 9000, 11e18)` | [0x376fe779…6f](https://bscscan.com/tx/0x376fe77921c6cb2ebfa199b3be62456a9512691b38baed9b1c164287d0ab2b6f) |
+
+v3 vault [0xF0FB407210944A577949eA7Cc3031B542740B5B2](https://bscscan.com/address/0xF0FB407210944A577949eA7Cc3031B542740B5B2) right after opening: $10.996, $8.09 in NVDAB, $2.91 in Venus, floor $9.58, break distance 17.5%.

@@ -1,6 +1,18 @@
 # Deployments (BSC mainnet, chain 56)
 
-## v2 (live, 2026-10-04)
+## v3 (live, 2026-10-05)
+
+| Contract | Address | Source |
+|---|---|---|
+| PlinthFactory | [0x271cb3B56E133cd3488AB31e99766A288bC8DCe5](https://bscscan.com/address/0x271cb3B56E133cd3488AB31e99766A288bC8DCe5) | [Sourcify exact match](https://repo.sourcify.dev/56/0x271cb3B56E133cd3488AB31e99766A288bC8DCe5) |
+| PlinthVault (implementation) | [0xcCE5d6ADAC4869fd9ee282Dbe085e2aDbCC197dB](https://bscscan.com/address/0xcCE5d6ADAC4869fd9ee282Dbe085e2aDbCC197dB) | [Sourcify exact match](https://repo.sourcify.dev/56/0xcCE5d6ADAC4869fd9ee282Dbe085e2aDbCC197dB) |
+
+- Deployed from block 125,831,062. First tx [0x2013ec24…fb52](https://bscscan.com/tx/0x2013ec242e6cc84571b05b7b409cc105b16680136171c4596f9ce1898df4fb52). 22 transactions.
+- Fixes from the second audit: a refused supply keeps tracking the existing position (H1); a market that will not redeem leaves the vault sell-only instead of blocking sells (H2); targets use min(multiplier, cap) (H5); transfers above the principal cap are held aside (M1); staged exit (M2); `Traded` events with executed amounts (M6); the live pool price must confirm a fall (M5). Regressions: `contracts/test/AuditFixes.t.sol`.
+- Keeper: the Agent Studio agent 0xB12a…1A1b, hosted on Railway (https://keeper-production-b362.up.railway.app, public at https://plinth-relay.vercel.app/agent). Owner pending: 0x14D5…0849 must call `acceptOwnership()`.
+- Demo vault [0xF0FB407210944A577949eA7Cc3031B542740B5B2](https://bscscan.com/address/0xF0FB407210944A577949eA7Cc3031B542740B5B2) (Agentic Wallet saver, NVDA, 90% floor), migrated from v2.
+
+## v2 (2026-10-04, superseded)
 
 | Contract | Address | Source |
 |---|---|---|

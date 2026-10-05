@@ -17,6 +17,8 @@ import { earningsEvents, haltEvents, macroEvents } from './events.js';
 const WAD = 10n ** 18n;
 /** Most trades one vault gets in one pass. Each is at most the stock's maxTrade and priced afresh. */
 const MAX_TRADES_PER_PASS = 5;
+/** Longest the keeper waits for earnings and trading-status sources before acting without them. */
+const EVENTS_DEADLINE_MS = 20_000;
 const num = (x: bigint, d = 18) => Number(formatUnits(x, d));
 import { stocks, gaps } from './data.js';
 
@@ -32,6 +34,9 @@ export interface KeeperConfig {
   sender?: { address: Address; send: Sender };
   dryRun: boolean;
   now?: () => number;
+  /** Tests inject a client and a shorter event deadline. */
+  client?: PublicClient;
+  eventsDeadlineMs?: number;
 }
 
 export interface Action {
@@ -70,7 +75,7 @@ export class Keeper {
   private keeperAddress?: Address;
 
   constructor(private readonly cfg: KeeperConfig) {
-    this.pub = createPublicClient({ chain: bsc, transport: http(cfg.rpcUrl), batch: { multicall: true } }) as PublicClient;
+    this.pub = cfg.client ?? (createPublicClient({ chain: bsc, transport: http(cfg.rpcUrl), batch: { multicall: true } }) as PublicClient);
     if (cfg.privateKey) {
       // Keys arrive from env; accept them with or without 0x.
       this.account = privateKeyToAccount(cfg.privateKey);
@@ -82,12 +87,21 @@ export class Keeper {
     return this.cfg.now ? this.cfg.now() : Math.floor(Date.now() / 1000);
   }
 
-  /** All risk events that matter from yesterday to three days out. */
+  /** All risk events that matter from yesterday to three days out. Bounded: if the sources do not answer within
+   *  EVENTS_DEADLINE_MS the pass goes on with the scheduled macro calendar only and records the failure, which
+   *  blocks multiplier raises for that pass (fail closed). */
   async events(symbols: string[]) {
     const now = this.now();
     const days = [-1, 0, 1, 2, 3].map((d) => new Date((now + d * 86400) * 1000));
-    const earn = await earningsEvents(symbols, days);
-    const halts = await haltEvents(this.cfg.relay, this.stocks.stocks.filter((s) => symbols.includes(s.sym)).map((s) => ({ symbol: s.sym, token: s.token })));
+    const fetched = Promise.all([
+      earningsEvents(symbols, days),
+      haltEvents(this.cfg.relay, this.stocks.stocks.filter((s) => symbols.includes(s.sym)).map((s) => ({ symbol: s.sym, token: s.token }))),
+    ]);
+    const deadline = this.cfg.eventsDeadlineMs ?? EVENTS_DEADLINE_MS;
+    const timeout = new Promise<null>((r) => setTimeout(() => r(null), deadline));
+    const got = await Promise.race([fetched, timeout]);
+    if (!got) return { events: macroEvents(), statuses: {} as Record<string, string>, errors: [`event sources did not answer within ${deadline / 1000}s`] };
+    const [earn, halts] = got;
     return {
       events: [...macroEvents(), ...earn.events, ...halts.events],
       statuses: halts.statuses,
@@ -150,7 +164,10 @@ export class Keeper {
     const vaults: Address[] = await Promise.all(Array.from({ length: Number(count) }, (_, i) =>
       this.pub.readContract({ address: this.cfg.factory, abi: factoryAbi, functionName: 'vaults', args: [BigInt(i)] })));
 
-    const info = await Promise.all(vaults.map(async (v) => {
+    // Each vault is read on its own: one that cannot be read (stale feed, broken pool, bad market) is reported and
+    // skipped, and every other vault is still defended.
+    const errors: string[] = [];
+    const settled = await Promise.allSettled(vaults.map(async (v) => {
       const [s, stock] = await Promise.all([
         this.pub.readContract({ address: v, abi: vaultAbi, functionName: 'status' }),
         this.pub.readContract({ address: v, abi: vaultAbi, functionName: 'stock' }),
@@ -158,56 +175,70 @@ export class Keeper {
       const symbol = this.stocks.byToken.get(getAddress(stock.token)) ?? stock.token;
       return { v, s, stock, symbol };
     }));
-
-    const symbols = [...new Set(info.map((i) => i.symbol))];
-    const ev = await this.events(symbols);
+    const info = settled.flatMap((r, i) => {
+      if (r.status === 'fulfilled') return r.value.s.promised === 0n ? [] : [r.value];
+      errors.push(`vault ${vaults[i]} unreadable: ${(r.reason as any)?.shortMessage ?? String(r.reason).slice(0, 200)}`);
+      return [];
+    });
     const actions: Action[] = [];
 
-    for (const { v, s, stock, symbol } of info) {
-      if (s.promised === 0n) continue; // emptied vault
-
-      // 1. Safe leg health: anyone may pull out; the keeper does it the moment the gate fails.
-      if (s.gateCode !== 0) {
+    // 1. Safety first, before any off-chain data: leave unhealthy lending markets (anyone may; the keeper does it
+    //    the moment a gate fails). Nothing here waits on an event source.
+    for (const { v, s, symbol } of info) {
+      if (s.gateCode === 0) continue;
+      try {
         actions.push(await this.write(v, 'pullOutIfUnhealthy', [], { vault: v, symbol, kind: 'pull-out', detail: `gate code ${s.gateCode}` }));
+      } catch (e) {
+        errors.push(`vault ${v} pull-out: ${(e as Error).message}`);
       }
+    }
 
-      // 2. Multiplier from the event policy, never above the vault's cap (the contract enforces it too).
-      const cap = num(s.cap);
-      const want = decide({ symbol, cap, eventCap: this.stocks.eventCap.get(symbol) ?? cap }, ev.events, this.now());
-      // A backup keeper (any wallet that is not the factory's keeper) makes only the calls anyone may make:
-      // pull-outs and rebalances. Multipliers are the keeper's job alone.
-      const me = this.cfg.sender?.address ?? this.account?.address;
-      const isKeeper = !!me && !!this.keeperAddress && me.toLowerCase() === this.keeperAddress.toLowerCase();
-      const next = isKeeper || !me ? nextMultiplier(num(s.multiplier), want.multiplier, Number(s.nextRaiseAt), this.now()) : null;
-      let multiplier = s.multiplier;
-      // Fail closed: if any event source could not be read, the keeper may lower but not raise.
-      const blindRaise = ev.errors.length > 0 && next !== null && next > num(s.multiplier);
-      if (next !== null && !blindRaise) {
-        const nextWad = BigInt(Math.round(next * 10)) * (WAD / 10n);
-        const stepNote = next < want.multiplier ? ` (one step toward ${want.multiplier})` : '';
-        const a = await this.write(v, 'setMultiplier', [nextWad], {
-          vault: v, symbol, kind: 'set-multiplier',
-          detail: `${num(s.multiplier)} -> ${next}${stepNote}: ${want.reason}`,
-        });
-        actions.push(a);
-        if (a.status === 'sent' || a.status === 'would-send') multiplier = nextWad;
-      }
+    // 2. Event risk (bounded by EVENTS_DEADLINE_MS), then multipliers and rebalances, one vault at a time.
+    const ev = await this.events([...new Set(info.map((i) => i.symbol))]);
+    errors.push(...ev.errors);
+    const me = this.cfg.sender?.address ?? this.account?.address;
+    const isKeeper = !!me && !!this.keeperAddress && me.toLowerCase() === this.keeperAddress.toLowerCase();
 
-      // 3. Rebalance when the stock leg is outside the band of the target at the multiplier now in force.
-      // A move bigger than one trade (maxTrade) takes several; each re-reads the vault and is priced afresh.
-      let cur = s;
-      for (let t = 0; t < MAX_TRADES_PER_PASS; t++) {
-        const cushion = cur.total > cur.floor ? cur.total - cur.floor : 0n;
-        let target = (multiplier * cushion) / WAD;
-        if (target > cur.total) target = cur.total;
-        if (!needsTrade(num(cur.stockUsd), num(target), num(stock.band), minTrade)) break;
-        const a = await this.write(v, 'rebalance', [], {
-          vault: v, symbol, kind: 'rebalance',
-          detail: `stock $${num(cur.stockUsd).toFixed(2)} vs target $${num(target).toFixed(2)}`,
-        });
-        actions.push(a);
-        if (a.status !== 'sent') break;
-        cur = await this.pub.readContract({ address: v, abi: vaultAbi, functionName: 'status' });
+    for (const { v, s, stock, symbol } of info) {
+      try {
+        // Multiplier from the event policy, never above the vault's cap (the contract enforces it too). A backup
+        // keeper (any wallet that is not the factory's keeper) makes only the calls anyone may make.
+        const cap = num(s.cap);
+        const want = decide({ symbol, cap, eventCap: this.stocks.eventCap.get(symbol) ?? cap }, ev.events, this.now());
+        const next = !s.exiting && (isKeeper || !me) ? nextMultiplier(num(s.multiplier), want.multiplier, Number(s.nextRaiseAt), this.now()) : null;
+        let multiplier = s.multiplier;
+        // Fail closed: if any event source could not be read, the keeper may lower but not raise.
+        const blindRaise = ev.errors.length > 0 && next !== null && next > num(s.multiplier);
+        if (next !== null && !blindRaise) {
+          const nextWad = BigInt(Math.round(next * 10)) * (WAD / 10n);
+          const stepNote = next < want.multiplier ? ` (one step toward ${want.multiplier})` : '';
+          const a = await this.write(v, 'setMultiplier', [nextWad], {
+            vault: v, symbol, kind: 'set-multiplier',
+            detail: `${num(s.multiplier)} -> ${next}${stepNote}: ${want.reason}`,
+          });
+          actions.push(a);
+          if (a.status === 'sent' || a.status === 'would-send') multiplier = nextWad < s.cap ? nextWad : s.cap;
+        }
+
+        // Rebalance when the stock leg is outside the band of the target at the multiplier now in force (zero during
+        // a staged exit). A move bigger than one trade (maxTrade) takes several; each re-reads the vault.
+        let cur = s;
+        for (let t = 0; t < MAX_TRADES_PER_PASS; t++) {
+          const m = cur.exiting ? 0n : multiplier;
+          const cushion = cur.total > cur.floor ? cur.total - cur.floor : 0n;
+          let target = (m * cushion) / WAD;
+          if (target > cur.total) target = cur.total;
+          if (!needsTrade(num(cur.stockUsd), num(target), num(stock.band), minTrade)) break;
+          const a = await this.write(v, 'rebalance', [], {
+            vault: v, symbol, kind: 'rebalance',
+            detail: `${cur.exiting ? 'staged exit: ' : ''}stock $${num(cur.stockUsd).toFixed(2)} vs target $${num(target).toFixed(2)}`,
+          });
+          actions.push(a);
+          if (a.status !== 'sent') break;
+          cur = await this.pub.readContract({ address: v, abi: vaultAbi, functionName: 'status' });
+        }
+      } catch (e) {
+        errors.push(`vault ${v}: ${(e as Error).message.slice(0, 200)}`);
       }
     }
 
@@ -218,7 +249,8 @@ export class Keeper {
       actions,
       statuses: ev.statuses,
       events: ev.events.filter((e) => Math.abs(e.at - this.now()) < 4 * 86400),
-      errors: ev.errors,
+      errors,
     };
   }
+
 }

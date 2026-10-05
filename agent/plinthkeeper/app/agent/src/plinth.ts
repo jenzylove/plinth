@@ -19,7 +19,7 @@ import { Keeper, type Action, type PassReport } from "./keeper/keeper.js";
 import { factoryAbi, vaultAbi } from "./keeper/abi.js";
 
 // The live factory; PLINTH_FACTORY overrides it (v1 was 0x57AB13A70d0BC7983196014b86D632eCAfD4b96f).
-export const PLINTH_FACTORY = (process.env.PLINTH_FACTORY || "0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906") as Address;
+export const PLINTH_FACTORY = (process.env.PLINTH_FACTORY || "0x271cb3B56E133cd3488AB31e99766A288bC8DCe5") as Address;
 const RELAY = "https://plinth-relay.vercel.app";
 
 const passes: PassReport[] = [];
@@ -27,6 +27,13 @@ const actions: (Action & { at: string })[] = [];
 const startedAt = new Date().toISOString();
 let passCount = 0;
 let lastPassAt: string | null = null;
+// Uptime evidence: the longest time between two completed passes since start, and how many gaps exceeded 5 minutes.
+let lastPassMs = 0;
+let maxGapSeconds = 0;
+let gapsOver5Min = 0;
+let timedOutPasses = 0;
+/** A pass that has not finished by now is abandoned so the next tick can run (one stuck call cannot freeze the loop). */
+const PASS_DEADLINE_MS = 150_000;
 let lastError: string | null = null;
 
 function rpcUrl(): string {
@@ -82,7 +89,17 @@ export function startPlinthKeeper(app: Express): void {
     if (running) return;
     running = true;
     try {
-      const r = await keeper.pass();
+      const r = await Promise.race([
+        keeper.pass(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`pass exceeded ${PASS_DEADLINE_MS / 1000}s`)), PASS_DEADLINE_MS)),
+      ]);
+      const nowMs = Date.now();
+      if (lastPassMs) {
+        const gap = (nowMs - lastPassMs) / 1000;
+        if (gap > maxGapSeconds) maxGapSeconds = Math.round(gap);
+        if (gap > 300) gapsOver5Min++;
+      }
+      lastPassMs = nowMs;
       passes.push(r);
       passCount++;
       lastPassAt = r.at;
@@ -93,6 +110,7 @@ export function startPlinthKeeper(app: Express): void {
       if (r.actions.length) console.log(`[plinth-keeper] ${r.at} ${JSON.stringify(r.actions)}`);
     } catch (e) {
       lastError = (e as Error).message;
+      if (lastError.startsWith("pass exceeded")) timedOutPasses++;
       console.error(`[plinth-keeper] pass failed: ${lastError}`);
     } finally {
       running = false;
@@ -119,6 +137,7 @@ export function startPlinthKeeper(app: Express): void {
       intervalSeconds: every / 1000,
       passes: passCount,
       lastPassAt,
+      uptime: { since: startedAt, maxGapSeconds, gapsOver5Min, timedOutPasses, passDeadlineSeconds: PASS_DEADLINE_MS / 1000 },
       dryRun: process.env.KEEPER_DRY_RUN === "1",
       lastError,
       latest: latestPass() ?? null,

@@ -2,12 +2,12 @@
 import { createPublicClient, fallback, http, parseAbi, type Address } from 'viem';
 import { bsc } from 'viem/chains';
 
-// The live factory (v2) and demo vault; VITE_FACTORY and VITE_DEMO_VAULT override them at build time.
+// The live factory (v3) and demo vault; VITE_FACTORY and VITE_DEMO_VAULT override them at build time.
 export const FACTORY_V1: Address = '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f';
-export const FACTORY: Address = (import.meta.env.VITE_FACTORY as Address | undefined) ?? '0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906';
+export const FACTORY: Address = (import.meta.env.VITE_FACTORY as Address | undefined) ?? '0x271cb3B56E133cd3488AB31e99766A288bC8DCe5';
 export const USDT: Address = '0x55d398326f99059fF775485246999027B3197955';
 export const VENUS_ORACLE: Address = '0x6592b5DE802159F3E74B2486b091D11a8256ab8A';
-export const DEMO_VAULT: Address = (import.meta.env.VITE_DEMO_VAULT as Address | undefined) ?? '0x18B9c043e7D4a17c1a034e97C826984dEb1cadFb';
+export const DEMO_VAULT: Address = (import.meta.env.VITE_DEMO_VAULT as Address | undefined) ?? '0xF0FB407210944A577949eA7Cc3031B542740B5B2';
 export const RELAY = 'https://plinth-relay.vercel.app';
 export const BSCSCAN = 'https://bscscan.com';
 
@@ -44,7 +44,7 @@ export const factoryAbi = parseAbi([
 const STOCK_CONFIG = 'struct StockConfig { address token; address pool; address router; uint24 fee; bool pancake; bool venusPriced; uint32 twapWindow; uint64 cap; uint64 band; uint64 maxSlippage; uint32 fastWindow; uint128 maxTrade; uint128 maxVault; }';
 
 export const vaultAbi = parseAbi([
-  'struct Status { uint256 total; uint256 stockUsd; uint256 safeUsd; uint256 price; uint256 slowPrice; uint256 fastPrice; uint256 floor; uint256 target; uint256 breakDistance; uint256 floorRate; uint256 multiplier; uint256 cap; uint256 promised; uint256 deposited; uint256 maturity; uint256 marketIndex; uint8 gateCode; uint256 nextRaiseAt; uint256 idleSince; }',
+  'struct Status { uint256 total; uint256 stockUsd; uint256 safeUsd; uint256 price; uint256 slowPrice; uint256 fastPrice; uint256 floor; uint256 target; uint256 breakDistance; uint256 floorRate; uint256 multiplier; uint256 cap; uint256 promised; uint256 deposited; uint256 maturity; uint256 marketIndex; uint8 gateCode; uint256 nextRaiseAt; uint256 idleSince; uint256 excess; bool impaired; bool exiting; }',
   'function status() view returns (Status)',
   STOCK_CONFIG,
   'function stock() view returns (StockConfig)',
@@ -57,6 +57,12 @@ export const vaultAbi = parseAbi([
   'event MovedSafeLeg(uint256 indexed from, uint256 indexed to, uint256 amount)',
   'event Deposited(address indexed from, uint256 amount, uint256 promised)',
   'event Withdrawn(uint256 share, uint256 usdtOut, uint256 promisedLeft)',
+]);
+
+/** v2 vaults (factory 0x6Dc3…5906): no excess, impaired or exiting fields. */
+const vaultAbiV2 = parseAbi([
+  'struct Status { uint256 total; uint256 stockUsd; uint256 safeUsd; uint256 price; uint256 slowPrice; uint256 fastPrice; uint256 floor; uint256 target; uint256 breakDistance; uint256 floorRate; uint256 multiplier; uint256 cap; uint256 promised; uint256 deposited; uint256 maturity; uint256 marketIndex; uint8 gateCode; uint256 nextRaiseAt; uint256 idleSince; }',
+  'function status() view returns (Status)',
 ]);
 
 /** v1 vaults (factory 0x57AB…b96f) have a shorter Status and StockConfig. */
@@ -175,7 +181,8 @@ export const currentKeeper = () => client.readContract({ address: FACTORY, abi: 
 
 export interface VaultStock { token: Address; maxSlippage: number; maxTrade: number | null; maxVault: number | null }
 
-/** One vault, read live. Works for v2 vaults and falls back to v1's shorter layout. */
+/** One vault, read live. Reads v3, and falls back to v2's and v1's shorter layouts (longest first, so a shorter
+ *  layout never misreads a longer one). */
 export async function vaultStatus(vault: Address) {
   const [stockId, saver] = await Promise.all([
     client.readContract({ address: vault, abi: vaultAbi, functionName: 'stockId' }),
@@ -187,15 +194,24 @@ export async function vaultStatus(vault: Address) {
       client.readContract({ address: vault, abi: vaultAbi, functionName: 'stock' }),
     ]);
     const stock: VaultStock = { token: cfg.token, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: fromWad(cfg.maxTrade), maxVault: fromWad(cfg.maxVault) };
-    return { s, stock, stockId: Number(stockId), saver, version: 2 as const };
+    return { s, stock, stockId: Number(stockId), saver, version: 3 as 1 | 2 | 3 };
+  } catch { /* not v3 */ }
+  try {
+    const [s2, cfg] = await Promise.all([
+      client.readContract({ address: vault, abi: vaultAbiV2, functionName: 'status' }),
+      client.readContract({ address: vault, abi: vaultAbi, functionName: 'stock' }),
+    ]);
+    const s = { ...s2, excess: 0n, impaired: false, exiting: false };
+    const stock: VaultStock = { token: cfg.token, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: fromWad(cfg.maxTrade), maxVault: fromWad(cfg.maxVault) };
+    return { s, stock, stockId: Number(stockId), saver, version: 2 as 1 | 2 | 3 };
   } catch {
     const [s1, cfg] = await Promise.all([
       client.readContract({ address: vault, abi: vaultAbiV1, functionName: 'status' }),
       client.readContract({ address: vault, abi: vaultAbiV1, functionName: 'stock' }),
     ]);
-    const s = { ...s1, slowPrice: s1.price, fastPrice: s1.price, nextRaiseAt: 0n, idleSince: 0n };
+    const s = { ...s1, slowPrice: s1.price, fastPrice: s1.price, nextRaiseAt: 0n, idleSince: 0n, excess: 0n, impaired: false, exiting: false };
     const stock: VaultStock = { token: cfg.token, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: null, maxVault: null };
-    return { s, stock, stockId: Number(stockId), saver, version: 1 as const };
+    return { s, stock, stockId: Number(stockId), saver, version: 1 as 1 | 2 | 3 };
   }
 }
 
