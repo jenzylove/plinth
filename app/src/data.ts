@@ -6,6 +6,7 @@ import replayPaths from '@data/replay-paths.json';
 import replay2018 from '@data/replay-nvda-2018-11.json';
 import replay2026 from '@data/replay-nvda-2026-07.json';
 import replayUtil from '@data/replay-venus-utilization.json';
+import outcomesFile from '@data/outcomes-2026-10-05.json';
 
 export const NAMES: Record<string, string> = {
   AAPL: 'Apple', AMZN: 'Amazon', BABA: 'Alibaba', CRCL: 'Circle', GME: 'GameStop', GOOGL: 'Alphabet',
@@ -48,3 +49,6 @@ export const alwaysOn = alwaysOnFile as unknown as {
   totals: { stocks: number; alwaysOnHoursBelowFloor: number; deskHoursBelowFloor: number; meanEndDiff: number; meanMinMarginDiff: number; naiveStocksBelowFloor: string[]; naiveWorstEnd: number };
   stocks: { sym: string; cap: number; hours: number; excluded: boolean; alwaysOn: Run; desk: Run; naiveAlwaysOn: Run }[];
 };
+
+export interface OutcomeYear { from: string; to: string; hold: number; plinth: Record<string, number> }
+export const outcomes = outcomesFile as { generated: string; source: string; method: string; stocks: Record<string, { multiplier: number; windows: number; worst: OutcomeYear; typical: OutcomeYear; best: OutcomeYear }> };

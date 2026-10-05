@@ -5,7 +5,7 @@ import {
   routeName, routeRoundTrip, usdtEarnProducts, vaultStatus, type DefiProduct, type ListedStock, type SafeMarket,
 } from '../chain';
 import type { Address } from 'viem';
-import { calibration, calibrationOf, gapOf, NAMES, replays, symOf } from '../data';
+import { calibration, calibrationOf, gapOf, NAMES, outcomes, replays, symOf, type OutcomeYear } from '../data';
 import { pct, short, usd, wad } from '../format';
 import { CountUp, FillText, Reveal, useScrollProgress } from '../motion';
 import { Deposit } from '../Deposit';
@@ -157,6 +157,7 @@ export function Front() {
                 <small className="muted">{roundTrip ? `buy and sell on the ${roundTrip.route} the vault uses, quoted now` : `quoting the vault's own pool`}</small></div>
             </div>
           )}
+          {calc && <Outcomes sym={sym} name={name} bps={bps} amount={amount} />}
           {calc && (
             <p className="muted small conditions">
               The floor holds if the agent can trade before {name} falls more than the break distance, the lending market
@@ -419,5 +420,44 @@ export function Footer() {
       <p className="wordmark" aria-hidden>plinth</p>
       </div>
     </footer>
+  );
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthYear = (d: string) => `${MONTHS[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}`;
+
+/** The stock's real worst, typical and best 12 months, replayed through the vault's rules, next to holding it. */
+function Outcomes({ sym, name, bps, amount }: { sym: string; name: string; bps: number; amount: number }) {
+  const o = outcomes.stocks[sym];
+  if (!o) return <p className="muted small outcomes-none">{name} has under a year of history, so there is no past year to replay yet.</p>;
+  const k = String(bps / 100);
+  const scale = amount / 1000;
+  const rows: [string, OutcomeYear][] = [[`${name}'s worst year`, o.worst], ['A typical year', o.typical], [`${name}'s best year`, o.best]];
+  const top = Math.max(...rows.map(([, y]) => Math.max(y.hold, y.plinth[k])));
+  const w = (v: number) => `${Math.max(2, (v / top) * 100)}%`;
+  return (
+    <div className="outcomes">
+      <div className="outcomes-head">
+        <h3>What {usd(amount)} became in {name}'s real years</h3>
+        <span className="legend"><i className="lg-hold" />Holding {name}<i className="lg-plinth" />Plinth at {bps / 100}%</span>
+      </div>
+      {rows.map(([label, y]) => {
+        const change = y.hold / 1000 - 1;
+        return (
+          <div className="outcome" key={label}>
+            <div className="o-label"><b>{label}</b><span>{monthYear(y.from)} to {monthYear(y.to)}: {name} {change >= 0 ? '+' : ''}{Math.round(change * 100)}%</span></div>
+            <div className="o-bars">
+              <div className="o-bar hold" style={{ width: w(y.hold) }}><span>{usd(y.hold * scale)}</span></div>
+              <div className="o-bar plinth" style={{ width: w(y.plinth[k]) }}><span>{usd(y.plinth[k] * scale)}</span></div>
+            </div>
+          </div>
+        );
+      })}
+      <p className="muted small">
+        Real daily prices from the last ten years, run through the vault's rules with trading costs: {o.windows} past
+        12 month stretches, these are three of them. The past is not a forecast, and the rules were tuned on this same
+        history. <a href="/proof">Every stock</a>.
+      </p>
+    </div>
   );
 }
