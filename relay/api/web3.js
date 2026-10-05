@@ -31,30 +31,39 @@ const POST_PATHS = new Set([
   '/api/v1/dex/pre-transaction/simulate',
 ]);
 // Factories whose contracts (the factory itself and the vaults it opened) may be simulated.
-const FACTORIES = (process.env.PLINTH_FACTORIES || '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f,0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906')
+const FACTORIES = (process.env.PLINTH_FACTORIES || '0x57AB13A70d0BC7983196014b86D632eCAfD4b96f,0x6Dc31bF796C8B01aCE5E50878CF8BA18d9Fd5906,0x271cb3B56E133cd3488AB31e99766A288bC8DCe5')
   .split(',').map((a) => a.trim().toLowerCase()).filter(Boolean);
 const RATE_LIMIT = 120;
 
-const hits = new Map(); // ip -> { minute, count }; per instance, best effort
+// ip -> { minute, count }. Per relay instance and reset by cold starts: it stops a single client hammering one
+// instance, not a distributed flood. Vercel's platform limits sit behind it.
+const hits = new Map();
 function limited(ip) {
   const minute = Math.floor(Date.now() / 60_000);
+  if (hits.size > 5000) hits.clear();
   const h = hits.get(ip);
   if (!h || h.minute !== minute) { hits.set(ip, { minute, count: 1 }); return false; }
-  h.count++;
-  if (hits.size > 5000) hits.clear();
-  return h.count > RATE_LIMIT;
+  return ++h.count > RATE_LIMIT;
 }
 
 const client = createPublicClient({ chain: bsc, transport: http(process.env.BSC_RPC_URL || 'https://bsc-dataseed1.defibit.io') });
-const factoryOf = parseAbi(['function factory() view returns (address)']);
+const vaultAbi = parseAbi(['function factory() view returns (address)', 'function saver() view returns (address)']);
+const factoryAbi = parseAbi(['function vaultsOf(address saver) view returns (address[])']);
 
-/** True when `to` is a Plinth factory or a vault opened by one. */
+/** True when `to` is a Plinth factory or a vault that factory actually opened: the vault's claimed factory must be
+ *  one of ours AND list the vault among its saver's vaults, so a lookalike contract cannot pass by claiming it. */
 async function isPlinth(to) {
   if (!isAddress(to)) return false;
   if (FACTORIES.includes(to.toLowerCase())) return true;
   try {
-    const f = await client.readContract({ address: getAddress(to), abi: factoryOf, functionName: 'factory' });
-    return FACTORIES.includes(f.toLowerCase());
+    const vault = getAddress(to);
+    const [f, saver] = await Promise.all([
+      client.readContract({ address: vault, abi: vaultAbi, functionName: 'factory' }),
+      client.readContract({ address: vault, abi: vaultAbi, functionName: 'saver' }),
+    ]);
+    if (!FACTORIES.includes(f.toLowerCase())) return false;
+    const list = await client.readContract({ address: f, abi: factoryAbi, functionName: 'vaultsOf', args: [saver] });
+    return list.some((v) => v.toLowerCase() === vault.toLowerCase());
   } catch {
     return false;
   }
@@ -85,7 +94,12 @@ export default async function handler(req, res) {
     const qs = new URLSearchParams(query).toString();
     requestPath = '/build' + path + (qs ? '?' + qs : '');
   } else {
-    const payload = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+    let payload;
+    try {
+      payload = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+    } catch {
+      return res.status(400).json({ error: 'body is not JSON' });
+    }
     path = payload.path;
     if (typeof path !== 'string' || !POST_PATHS.has(path)) return res.status(400).json({ error: 'path not allowed', allowed: [...POST_PATHS] });
     if (path === '/api/v1/dex/pre-transaction/simulate') {
@@ -110,6 +124,7 @@ export default async function handler(req, res) {
         ...(req.method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
       },
       ...(req.method === 'POST' ? { body } : {}),
+      signal: AbortSignal.timeout(15_000),
     });
     const text = await r.text();
     res.setHeader('X-Relay-Region', process.env.VERCEL_REGION || 'unknown');

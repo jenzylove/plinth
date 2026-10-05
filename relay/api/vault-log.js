@@ -17,6 +17,12 @@ const abi = parseAbi([
   'event Withdrawn(uint256 share, uint256 usdtOut, uint256 promisedLeft)',
   'event WithdrawnInKind(uint256 share, uint256 stockOut, uint256 receiptOut, uint256 usdtOut)',
   'event Rolled(uint256 maturity, uint256 promised)',
+  'event Traded(bool buy, uint256 usdtAmount, uint256 tokens)',
+  'event Impaired(uint256 indexed marketIndex, uint8 gateCode)',
+  'event SupplyRefused(uint256 indexed marketIndex, uint256 amount)',
+  'event HeldAside(uint256 amount, uint256 excess)',
+  'event ExitStarted()',
+  'event ExitCancelled()',
 ]);
 
 const usd = (x) => '$' + Number(formatUnits(x < 0n ? -x : x, 18)).toFixed(2);
@@ -25,7 +31,14 @@ const wad = (x) => Number(formatUnits(x, 18));
 function detail(name, a) {
   switch (name) {
     case 'Deposited': return `${usd(a.amount)} in; promise now ${usd(a.promised)}`;
-    case 'Rebalanced': return `${a.deltaUsd >= 0n ? 'bought' : 'sold'} ${usd(a.deltaUsd)} of stock (${REASONS[a.reason] ?? a.reason}); value ${usd(a.total)}, floor ${usd(a.floor)}, multiplier ${wad(a.multiplier)}`;
+    // deltaUsd is the drift the vault saw before the one-trade cap; what actually traded is in the Traded event.
+    case 'Rebalanced': return `rebalance (${REASONS[a.reason] ?? a.reason}): ${a.deltaUsd >= 0n ? 'wanted to buy' : 'wanted to sell'} ${usd(a.deltaUsd)} at value ${usd(a.total)}, floor ${usd(a.floor)}, multiplier ${wad(a.multiplier)}`;
+    case 'Traded': return `${a.buy ? 'bought' : 'sold'} ${Number(formatUnits(a.tokens, 18)).toFixed(6)} stock for ${usd(a.usdtAmount)}`;
+    case 'Impaired': return `${MARKETS[Number(a.marketIndex)] ?? a.marketIndex} failed its gate (code ${a.gateCode}) and would not redeem: sell-only until it does`;
+    case 'SupplyRefused': return `${MARKETS[Number(a.marketIndex)] ?? a.marketIndex} refused ${usd(a.amount)}; kept as idle USDT`;
+    case 'HeldAside': return `${usd(a.amount)} above the principal cap held aside (total aside ${usd(a.excess)})`;
+    case 'ExitStarted': return 'saver started a staged exit: stock sold in chunks';
+    case 'ExitCancelled': return 'saver cancelled the staged exit';
     case 'PulledOut': return `pulled out of ${MARKETS[Number(a.marketIndex)] ?? a.marketIndex} (gate code ${a.gateCode})`;
     case 'MovedSafeLeg': return `safe leg ${usd(a.amount)} from ${MARKETS[Number(a.from)]} to ${MARKETS[Number(a.to)]}`;
     case 'MultiplierSet': return `multiplier set to ${wad(a.multiplier)} by ${a.by}`;
