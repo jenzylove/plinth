@@ -117,7 +117,7 @@ What the data says, plainly: most of the protection on a known event comes from 
 |---|---|
 | Technical implementation (30) | Contract-enforced CPPI, health-gated safe leg, per-stock multiplier from 10y data, 24/7 keeper, mainnet vaults, fork replays |
 | Creativity and originality (25) | Not on the organizers' idea list. The first capital-protected equity product on-chain. Uses 24/7 trading to defend the floor while New York sleeps, with a price rule built from the bStock pools' own bad prints |
-| Developer Experience Report (25) | Written by the user. The build log captures raw facts for it (see section 7) |
+| Developer Experience Report (25) | Written by the builder from the raw facts in docs/DX_LOG.md (see section 7) |
 | Product quality and UX (20) | One question: "get your money back?" Aimed at bank structured-deposit buyers, the least crypto-native users |
 
 Sponsor tech:
@@ -154,7 +154,7 @@ Sponsor tech:
 - Not for US persons or other excluded regions.
 
 ## 7. Developer Experience Report inputs (raw facts to log while building)
-Onboarding time for each API, doc gaps, RFQ versus contract signing, Agentic Wallet sessions and developer mode, BEP-677 multipliers, pool depth per bStock, and pause behaviour. The user writes the report; we only log the facts.
+Onboarding time for each API, doc gaps, RFQ versus contract signing, Agentic Wallet sessions and developer mode, BEP-677 multipliers, pool depth per bStock, and pause behaviour. The builder writes the report; the log only holds the facts.
 
 ## 8. Sponsor checklist
-See `SUBMISSION_CHECKLIST.md`.
+Each sponsor module and what it does in Plinth is listed in the README.

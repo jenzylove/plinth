@@ -9,7 +9,7 @@
 
 - Deployed from block 125,831,062. First tx [0x2013ec24…fb52](https://bscscan.com/tx/0x2013ec242e6cc84571b05b7b409cc105b16680136171c4596f9ce1898df4fb52). 22 transactions.
 - Fixes from the second audit: a refused supply keeps tracking the existing position (H1); a market that will not redeem leaves the vault sell-only instead of blocking sells (H2); targets use min(multiplier, cap) (H5); transfers above the principal cap are held aside (M1); staged exit (M2); `Traded` events with executed amounts (M6); the live pool price must confirm a fall (M5). Regressions: `contracts/test/AuditFixes.t.sol`.
-- Keeper: the Agent Studio agent 0xB12a…1A1b, hosted on Railway (https://keeper-production-b362.up.railway.app, public at https://plinth-relay.vercel.app/agent). Owner pending: 0x14D5…0849 must call `acceptOwnership()`.
+- Keeper: the Agent Studio agent 0xB12a…1A1b, hosted on Railway (https://keeper-production-b362.up.railway.app, public at https://plinth-relay.vercel.app/agent). Owner: 0x14D539F08edf09FBf152e2ba5B461A3522B30849 (accepted 2026-10-05).
 - Demo vault [0xF0FB407210944A577949eA7Cc3031B542740B5B2](https://bscscan.com/address/0xF0FB407210944A577949eA7Cc3031B542740B5B2) (Agentic Wallet saver, NVDA, 90% floor), migrated from v2.
 
 ## v2 (2026-10-04, superseded)
@@ -21,7 +21,7 @@
 
 - Deployed from block 125,630,448. First tx: [0x7d1d7c14…6cd9](https://bscscan.com/tx/0x7d1d7c14b34c40cbf178e76bcba4e391560da550b8aa0eeaf1b4c03f74626cd9). 22 transactions (factory, 20 `addStock`, `transferOwnership`), 0.00048 BNB in gas.
 - Deployer 0x1Bc8751CEe3CCA2f65cd624E7925558aA6f9af34; owner handed to 0x14D539F08edf09FBf152e2ba5B461A3522B30849 (Ownable2Step: takes effect when it calls `acceptOwnership()`).
-- Keeper: the Agent Studio agent 0xB12a1e4e0E22A97E266eD7a6bfc4133F699b1A1b. The GitHub Actions wallet 0x3aCd…2923 runs as a backup and makes only the calls anyone may make.
+- Keeper: the Agent Studio agent 0xB12a1e4e0E22A97E266eD7a6bfc4133F699b1A1b.
 - Settings: max floor rate 6%, term 365 days, minimum trade $1, minimum first deposit $1, per stock: fast window 60 s, one trade at most $10k, one vault at most $50k.
 
 ## v1 (2026-09-30, superseded)

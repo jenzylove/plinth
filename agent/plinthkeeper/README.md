@@ -7,4 +7,4 @@ A BNB Chain seller agent workspace scaffolded by `bag init` (bnbagent-studio).
 - `bag dev` — run the agent locally; `bag doctor` — readiness checks.
 - `bag deploy --provider aws` — deploy to AWS Bedrock AgentCore (uses the self-rendered `agentcore/` descriptor).
 
-In Claude Code / Cursor, type `/bnbagent-studio` — the skill drives every step.
+
