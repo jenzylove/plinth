@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Address, Hash } from 'viem';
-import { BSCSCAN, client, openLimits } from './chain';
+import { BSCSCAN, client, openLimits, walletHoldings } from './chain';
+import { NAMES, stocks as listedStocks } from './data';
 import { short, usd } from './format';
 import { approve, hasWallet, openVault, usdtState, usdtUnits, vaultsOf } from './wallet';
 import { connect, useAccount } from './account';
@@ -23,6 +24,7 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
   const [done, setDone] = useState<{ hash: Hash; vault: Address } | null>(null);
   const [mine, setMine] = useState<Address[]>([]);
   const [bnb, setBnb] = useState<bigint | null>(null);
+  const [holdings, setHoldings] = useState<Awaited<ReturnType<typeof walletHoldings>> | null>(null);
 
   // What is signed is exactly what is shown: the amount in whole cents.
   const want = amount > 0 ? usdtUnits(amount) : 0n;
@@ -32,11 +34,12 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
     const s = await usdtState(a);
     setBalance(s.balance); setAllowance(s.allowance);
     setBnb(await client.getBalance({ address: a }).catch(() => null));
+    walletHoldings(a, listedStocks).then(setHoldings).catch(() => setHoldings(null));
     setMine(await vaultsOf(a));
   };
   // A new account starts from a clean slate: no balance, allowance or vault list from the previous one.
   useEffect(() => {
-    setBalance(null); setAllowance(0n); setMine([]); setBnb(null); setDone(null); setError(null);
+    setBalance(null); setAllowance(0n); setMine([]); setBnb(null); setHoldings(null); setDone(null); setError(null);
     if (account) { refresh(account).catch(() => {}); setStep('ready'); }
   }, [account]);
   // The factory's limits for this stock: the smallest first deposit and the most one vault may hold.
@@ -100,6 +103,12 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
           )}
         </li>
       </ol>
+      {account && holdings && (
+        <p className="muted small">
+          In this wallet (Binance Wallet API): {usd(holdings.usdt, 2)} USDT
+          {holdings.stocks.length > 0 && <>, and {holdings.stocks.map((h) => `${NAMES[h.sym] ?? h.sym} ${usd(h.usd, 2)}`).join(', ')} in bStocks held outright, with no floor under them</>}.
+        </p>
+      )}
       {account && bnb !== null && bnb < 300_000_000_000_000n && <p className="fail">This wallet has {(Number(bnb) / 1e18).toFixed(5)} BNB. Approving and depositing need a little BNB for gas (about 0.0003 BNB, a few cents). Send some BNB (BNB Smart Chain) to {short(account)} first.</p>}
       {tooSmall && <p className="fail">The smallest first deposit is {usd(limits!.minOpen, 2)}.</p>}
       {tooBig && <p className="fail">One vault holds at most {usd(limits!.maxVault!)} for this stock, so a full move to safety takes a few trades of at most $10k each. <button className="linkish" onClick={() => onAmount(limits!.maxVault!)}>Use {usd(limits!.maxVault!)}</button></p>}

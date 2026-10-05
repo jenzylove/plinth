@@ -1,7 +1,7 @@
 // Copied from packages/keeper/src/events.ts by scripts/sync-agent.sh. Edit the original.
 // Where the keeper's risk events come from. Every source is live or an official schedule; if a source
 // cannot be read the keeper logs it and keeps the tighter of the last known state (fail closed).
-import type { RiskEvent } from './policy.js';
+import { volatilityRatio, VOLATILITY_TRIGGER, type RiskEvent } from './policy.js';
 
 import { macro } from './data.js';
 
@@ -81,4 +81,38 @@ export async function haltEvents(
     }
   }));
   return { events, statuses, errors };
+}
+
+/** Volatility per bStock from the Binance Web3 Market API (hourly candles, through the relay): an event when the last
+ *  24 hours of moves run at least VOLATILITY_TRIGGER times their usual size over the last ~12 days. */
+export async function volatilityEvents(
+  relay: string,
+  stocks: { symbol: string; token: string }[],
+): Promise<{ events: RiskEvent[]; ratios: Record<string, number>; errors: string[] }> {
+  const events: RiskEvent[] = [];
+  const ratios: Record<string, number> = {};
+  const errors: string[] = [];
+  const now = Math.floor(Date.now() / 1000);
+  await Promise.all(stocks.map(async (s) => {
+    try {
+      const q = new URLSearchParams({
+        path: '/api/v1/dex/market/candles', binanceChainId: '56', chainIndex: '56',
+        tokenContractAddress: s.token.toLowerCase(), bar: '1h', limit: '300',
+      });
+      const r = await fetch(`${relay}/api/web3?${q}`, { signal: AbortSignal.timeout(FETCH_DEADLINE_MS) });
+      const j: any = await r.json();
+      if (j.code !== 0) throw new Error(`code ${j.code} ${j.msg ?? ''}`);
+      // candles rows: [open, high, low, close, volume, openTime, trades]; sort by time to be safe
+      const rows = (j.data as any[]).map((d) => ({ t: Number(d[5]), c: Number(d[3]) })).sort((a, b) => a.t - b.t);
+      const ratio = volatilityRatio(rows.map((x) => x.c));
+      if (ratio === null) return;
+      ratios[s.symbol] = +ratio.toFixed(2);
+      if (ratio >= VOLATILITY_TRIGGER) {
+        events.push({ kind: 'volatility', name: `${s.symbol} moves at ${ratio.toFixed(1)}x their usual size`, at: now, symbol: s.symbol });
+      }
+    } catch (e) {
+      errors.push(`volatility ${s.symbol}: ${(e as Error).message}`);
+    }
+  }));
+  return { events, ratios, errors };
 }

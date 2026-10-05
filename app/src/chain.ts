@@ -308,3 +308,17 @@ export async function routeRoundTrip(r: Route, usd: number): Promise<number> {
   const back = await quote(r, r.token, USDT, tokens);
   return usd - fromWad(back);
 }
+
+/** Wallet API: what a wallet holds on BSC, narrowed to USDT and the listed bStocks (wallets also hold airdropped junk). */
+export async function walletHoldings(address: Address, listed: { sym: string; token: string }[]) {
+  const d = await web3Get('/api/v1/dex/balance/all-token-balances-by-address', { address, chains: '56', pageSize: '100' });
+  const assets: any[] = (Array.isArray(d) ? d[0]?.tokenAssets : d?.tokenAssets) ?? [];
+  const by = new Map(assets.map((a) => [String(a.tokenContractAddress).toLowerCase(), a]));
+  const usdt = Number(by.get(USDT.toLowerCase())?.balance ?? 0);
+  const stocks = listed.flatMap((l) => {
+    const a = by.get(l.token.toLowerCase());
+    const amount = Number(a?.balance ?? 0);
+    return amount > 0 ? [{ sym: l.sym, amount, usd: amount * Number(a.tokenPrice ?? 0) }] : [];
+  });
+  return { usdt, stocks };
+}

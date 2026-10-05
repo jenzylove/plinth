@@ -62,3 +62,24 @@ describe('raise rule', () => {
     expect(nextMultiplier(5.7, 5.7, 0, 1)).toBeNull();
   });
 });
+
+import { volatilityRatio } from '../src/policy.js';
+
+describe('volatility signal', () => {
+  const calm = Array.from({ length: 300 }, (_, i) => 100 * (1 + 0.002 * Math.sin(i)));
+  it('calm history: ratio near 1, no cut', () => {
+    expect(volatilityRatio(calm)!).toBeLessThan(1.5);
+  });
+  it('a single bad print does not trigger it', () => {
+    const spiky = [...calm]; spiky[290] = 150;
+    expect(volatilityRatio(spiky)!).toBeLessThan(1.5);
+  });
+  it('a day of large moves does', () => {
+    const wild = calm.map((p, i) => (i >= 276 ? p * (1 + 0.02 * Math.sin(i * 1.7)) : p));
+    expect(volatilityRatio(wild)!).toBeGreaterThan(2);
+  });
+  it('a volatility event cuts to 70% of the cap', () => {
+    const d = decide(nvda, [{ kind: 'volatility', name: 'NVDA moves at 2.4x', at: 0, symbol: 'NVDA' }], 0);
+    expect(d.multiplier).toBe(3.9); // floor(5.7 x 0.7, 0.1)
+  });
+});

@@ -2,7 +2,7 @@
 // multiplier the keeper should set. The contract refuses anything above the cap, so this can only lower.
 
 export interface RiskEvent {
-  kind: 'earnings' | 'jobs' | 'cpi' | 'fomc' | 'halt';
+  kind: 'earnings' | 'jobs' | 'cpi' | 'fomc' | 'halt' | 'volatility';
   name: string;
   /** Unix seconds. For 'halt' this is when it was observed. */
   at: number;
@@ -33,6 +33,8 @@ export const MACRO_WINDOW = { before: 12 * H, after: 1 * H };
 /** Safety margin before market-wide releases. A policy choice, not derived from data. */
 export const MACRO_FACTOR = 0.75;
 export const HALT_FACTOR = 0.5;
+/** Margin while a stock's recent moves run well above their usual size (Market API candles). */
+export const VOLATILITY_FACTOR = 0.7;
 
 const floor1 = (x: number) => Math.floor(x * 10 + 1e-9) / 10;
 
@@ -52,6 +54,10 @@ export function decide(stock: StockRisk, events: RiskEvent[], now: number): Deci
     } else if ((e.kind === 'jobs' || e.kind === 'cpi' || e.kind === 'fomc') && inWindow(now, e.at, MACRO_WINDOW)) {
       m = Math.min(m, stock.cap * MACRO_FACTOR);
       reasons.push(`${e.name}: 25% margin before a market-wide release`);
+      hit.push(e);
+    } else if (e.kind === 'volatility' && e.symbol === stock.symbol) {
+      m = Math.min(m, stock.cap * VOLATILITY_FACTOR);
+      reasons.push(`${e.name}: 30% margin while moves run above their usual size`);
       hit.push(e);
     } else if (e.kind === 'halt' && e.symbol === stock.symbol) {
       m = Math.min(m, stock.eventCap, stock.cap * HALT_FACTOR);
@@ -78,3 +84,18 @@ export function nextMultiplier(current: number, want: number, nextRaiseAt: numbe
   if (want === current || now < nextRaiseAt) return null;
   return Math.min(want, Math.round((current + step) * 1e6) / 1e6);
 }
+
+/** Recent moves against their usual size, from hourly closes (oldest first). Median absolute hourly return over the
+ *  last `recent` hours divided by the median over the whole series: medians, so one bad print cannot trigger it.
+ *  Returns null when there is not enough history. */
+export function volatilityRatio(closes: number[], recent = 24): number | null {
+  const r: number[] = [];
+  for (let i = 1; i < closes.length; i++) if (closes[i] > 0 && closes[i - 1] > 0) r.push(Math.abs(Math.log(closes[i] / closes[i - 1])));
+  if (r.length < recent * 4) return null;
+  const median = (xs: number[]) => { const a = [...xs].sort((x, y) => x - y); const k = a.length >> 1; return a.length % 2 ? a[k] : (a[k - 1] + a[k]) / 2; };
+  const base = median(r);
+  return base > 0 ? median(r.slice(-recent)) / base : null;
+}
+
+/** A volatility event fires when recent moves run at least this many times their usual size. */
+export const VOLATILITY_TRIGGER = 2;

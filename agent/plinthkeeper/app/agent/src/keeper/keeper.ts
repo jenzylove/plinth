@@ -13,7 +13,7 @@ import { bsc } from 'viem/chains';
 import { privateKeyToAccount, type PrivateKeyAccount } from 'viem/accounts';
 import { factoryAbi, vaultAbi } from './abi.js';
 import { decide, needsTrade, nextMultiplier, type RiskEvent } from './policy.js';
-import { earningsEvents, haltEvents, macroEvents } from './events.js';
+import { earningsEvents, haltEvents, macroEvents, volatilityEvents } from './events.js';
 
 const WAD = 10n ** 18n;
 /** Most trades one vault gets in one pass. Each is at most the stock's maxTrade and priced afresh. */
@@ -94,19 +94,19 @@ export class Keeper {
   async events(symbols: string[]) {
     const now = this.now();
     const days = [-1, 0, 1, 2, 3].map((d) => new Date((now + d * 86400) * 1000));
-    const fetched = Promise.all([
-      earningsEvents(symbols, days),
-      haltEvents(this.cfg.relay, this.stocks.stocks.filter((s) => symbols.includes(s.sym)).map((s) => ({ symbol: s.sym, token: s.token }))),
-    ]);
+    const held = this.stocks.stocks.filter((s) => symbols.includes(s.sym)).map((s) => ({ symbol: s.sym, token: s.token }));
+    const fetched = Promise.all([earningsEvents(symbols, days), haltEvents(this.cfg.relay, held), volatilityEvents(this.cfg.relay, held)]);
     const deadline = this.cfg.eventsDeadlineMs ?? EVENTS_DEADLINE_MS;
     const timeout = new Promise<null>((r) => setTimeout(() => r(null), deadline));
     const got = await Promise.race([fetched, timeout]);
     if (!got) return { events: macroEvents(), statuses: {} as Record<string, string>, errors: [`event sources did not answer within ${deadline / 1000}s`] };
-    const [earn, halts] = got;
+    const [earn, halts, vol] = got;
+    const statuses: Record<string, string> = { ...halts.statuses };
+    for (const [sym, ratio] of Object.entries(vol.ratios)) statuses[sym] = `${statuses[sym] ?? 'status unknown'}; moves ${ratio}x usual`;
     return {
-      events: [...macroEvents(), ...earn.events, ...halts.events],
-      statuses: halts.statuses,
-      errors: [...earn.errors, ...halts.errors],
+      events: [...macroEvents(), ...earn.events, ...halts.events, ...vol.events],
+      statuses,
+      errors: [...earn.errors, ...halts.errors, ...vol.errors],
     };
   }
 

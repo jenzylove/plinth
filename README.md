@@ -31,10 +31,12 @@ When does the floor fail? If the stock falls more than the break distance before
 |---|---|
 | bStocks | The stock leg. 20 bStocks listed, each with its own pool, fee tier, multiplier and limits. |
 | Binance Web3 API, RWA Data | Trading status and pause codes for the agent's event policy; bStock and underlying reference prices on the vault page; 3 months of hourly bStock history for the off-hours study. |
+| Binance Web3 API, Market | Hourly candles for each held stock: when the last 24 hours of moves run at least 2x their usual size (medians, so one bad print cannot trigger it), the agent cuts risk to 70% of the cap until it calms. |
+| Binance Web3 API, Wallet | When a saver connects, shows what the wallet already holds: USDT and any bStocks held outright with no floor under them. |
 | Binance Web3 API, DeFi | Ranks every USDT earn product on BSC on the front page. The vault's own health gate chooses between Venus and Aave on chain. |
 | Binance Web3 API, Trading | Aggregated quotes shown as an indicative best price. The vault trades only on its fixed PancakeSwap or Uniswap pool (RFQ routes need a wallet signature a vault cannot give), so exit estimates use that pool's quoter. |
 | Binance Web3 API, Transaction | Every keeper write is simulated by the Transaction API before it is sent; a FAIL blocks it. If the API is unreachable the on-chain simulation stands and the action records that. |
-| Agentic Wallet | The demo vault was opened, topped up, partly withdrawn and migrated from a Binance Agentic Wallet with Developer Mode contract-calls, each previewed first ([docs/spikes/agentic-deposit.md](docs/spikes/agentic-deposit.md)). |
+| Agentic Wallet | The demo vault was opened, partly withdrawn and migrated from a Binance Agentic Wallet with Developer Mode contract-calls, each previewed first ([docs/spikes/agentic-deposit.md](docs/spikes/agentic-deposit.md)). The [Plinth skill](skills/plinth/SKILL.md) lets the wallet's AI do it in plain words ("protect $50 in Nvidia at 95%"): the relay plans the exact calls, the wallet previews each one, the user confirms, the wallet executes. |
 | BNB Agent Studio | The keeper agent: ERC-8004 identity, A2A card, an ERC-8183 seller (job 56898 delivered a vault report on mainnet), hosting paid from its own wallet over x402 on NodeOps (that deployment never started; the agent runs on Railway). |
 
 All calls to the Web3 API go through a small relay in Singapore ([relay/](relay/)) because the API refuses US addresses; it allows an exact list of read endpoints and Plinth-only simulations.
