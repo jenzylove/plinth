@@ -32,17 +32,18 @@ export function Reveal({ children, delay = 0, as: Tag = 'div', className = '', s
 export function CountUp({ value, format }: { value: number; format: (x: number) => string }) {
   const [ref, seen] = useInView<HTMLSpanElement>(0.4);
   const [shown, setShown] = useState(value);
-  const from = useRef(value);
+  // What is on screen right now, so an interrupted animation resumes from there and always lands on the latest value.
+  const live = useRef(value);
   useEffect(() => {
-    if (!seen || from.current === value) return;
-    if (reduced()) { setShown(value); from.current = value; return; }
-    const start = performance.now(), a = from.current, dur = 1100;
+    if (!seen || live.current === value) return;
+    if (reduced()) { live.current = value; setShown(value); return; }
+    const start = performance.now(), a = live.current, dur = 1100;
     let raf = 0;
     const tick = (t: number) => {
       const k = Math.min(1, (t - start) / dur), e = 1 - Math.pow(1 - k, 3);
-      setShown(a + (value - a) * e);
+      live.current = k < 1 ? a + (value - a) * e : value;
+      setShown(live.current);
       if (k < 1) raf = requestAnimationFrame(tick);
-      else from.current = value;
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
