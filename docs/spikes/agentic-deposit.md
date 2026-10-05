@@ -41,3 +41,7 @@ v2 vault [0x18B9c043e7D4a17c1a034e97C826984dEb1cadFb](https://bscscan.com/addres
 | 3 | v3 factory `open(12 /*NVDA*/, 9000, 11e18)` | [0x376fe779…6f](https://bscscan.com/tx/0x376fe77921c6cb2ebfa199b3be62456a9512691b38baed9b1c164287d0ab2b6f) |
 
 v3 vault [0xF0FB407210944A577949eA7Cc3031B542740B5B2](https://bscscan.com/address/0xF0FB407210944A577949eA7Cc3031B542740B5B2) right after opening: $10.996, $8.09 in NVDAB, $2.91 in Venus, floor $9.58, break distance 17.5%.
+
+## Through the Plinth skill (2026-10-05)
+
+`skills/plinth/SKILL.md` followed step by step: the relay planner (`/api/plan?action=withdraw&share=5`) returned the call, the Agentic Wallet previewed it (simulation 000000000, +0.5498 USDT to the wallet, no risks), then executed it: [0x5e00e4cc…8f81](https://bscscan.com/tx/0x5e00e4cc95dc12c7fef888a0bc93873493f5ec326cf7f91df1552baae4948f81). Vault after: $10.45.
