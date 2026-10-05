@@ -116,7 +116,9 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
                 <strong>{exit === null ? '…' : exit === 'unavailable' ? usd(total, 2) : <CountUp value={exit.value} format={(x) => usd(x, 2)} />}</strong>
                 <small>{exit === null ? `quoting the vault's own pool` : exit === 'unavailable'
                   ? `value now; the pool quote was not available, and the sale may cost up to ${pct(v.stock.maxSlippage)} of the stock part`
-                  : exit.cost > 0 ? `safe part back in full; ${name} sold on the ${routeName(v.stock)} the vault trades on (${usd(exit.cost, 2)} cost). An estimate at this moment, not a minimum.` : 'all in the safe part, back in full'}</small>
+                  : tokens <= 0 ? 'nothing in the stock right now: all in the safe part, back in full'
+                  : exit.cost > 0.005 ? `safe part back in full; the ${name} part sold on the ${routeName(v.stock)} the vault trades on, ${usd(exit.cost, 2)} below the vault's valuation. An estimate at this moment, not a minimum.`
+                  : `safe part back in full; the ${name} part sold on the ${routeName(v.stock)} the vault trades on, at about the vault's own valuation right now. An estimate, not a minimum.`}</small>
               </Reveal>
             </div>
 
