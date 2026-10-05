@@ -24,6 +24,7 @@ const GET_PATHS = new Set([
   '/api/v1/dex/market/token/basic-info',
   '/api/v1/dex/market/token/top-liquidity',
   '/api/v1/dex/aggregator/quote',
+  '/api/v1/dex/balance/all-token-balances-by-address',
 ]);
 const POST_PATHS = new Set([
   '/api/v1/defi/data/investment/list',
