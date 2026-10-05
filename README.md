@@ -39,6 +39,7 @@ to the deposit button.
 
 | | |
 |---|---|
+| Demo video (3:30) | https://youtu.be/tCO9HDtvVmQ |
 | Live site | https://plinth-savings.vercel.app |
 | A real vault, real money | https://plinth-savings.vercel.app/demo |
 | Proof: backtests, fork replays, off hours data | https://plinth-savings.vercel.app/proof |
