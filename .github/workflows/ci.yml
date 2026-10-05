@@ -27,16 +27,3 @@ jobs:
       - name: contract math (no network)
         working-directory: contracts
         run: forge test --match-contract FloorMathTest
-  fork:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: foundry-rs/foundry-toolchain@v1
-      - name: fork tests against BSC mainnet at a pinned block
-        working-directory: contracts
-        env:
-          BSC_ARCHIVE_RPC_URL: ${{ secrets.BSC_ARCHIVE_RPC_URL || 'https://bsc-mainnet.public.blastapi.io' }}
-        run: forge test --match-contract 'VaultForkTest|AuditFixesTest|AllStocksForkTest'

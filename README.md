@@ -139,7 +139,7 @@ BSC_RPC_URL=https://bsc-dataseed1.defibit.io npx tsx src/cli.ts --once
 cd ../../app && npm ci && npm run dev
 ```
 
-The fork suite opens and closes all 20 stocks, sells into crashes, reduces risk in chunks, and runs every audit regression ([contracts/test/AuditFixes.t.sol](contracts/test/AuditFixes.t.sol)). The replay lab ([contracts/test/ReplayLab.t.sol](contracts/test/ReplayLab.t.sol)) replays real Nvidia paths against the real contracts next to two bank desks.
+The fork tests need an archive RPC with a real rate limit (the free one above is enough on a laptop, but it answers 429 to shared CI runners, so CI runs them only on demand with your own key). The fast checks run on every push. The fork suite opens and closes all 20 stocks, sells into crashes, reduces risk in chunks, and runs every audit regression ([contracts/test/AuditFixes.t.sol](contracts/test/AuditFixes.t.sol)). The replay lab ([contracts/test/ReplayLab.t.sol](contracts/test/ReplayLab.t.sol)) replays real Nvidia paths against the real contracts next to two bank desks.
 
 ## Repository
 

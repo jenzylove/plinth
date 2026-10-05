@@ -1,0 +1,20 @@
+name: fork tests
+# The fork suite replays the contracts against BSC mainnet at a pinned block. It needs an archive RPC with a real
+# rate limit: the free public one answers 429 to GitHub's runners. Add the repository secret BSC_ARCHIVE_RPC_URL and
+# run this by hand. The same suite passes locally (see the README).
+on:
+  workflow_dispatch:
+jobs:
+  fork:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: fork tests against BSC mainnet at a pinned block
+        working-directory: contracts
+        env:
+          BSC_ARCHIVE_RPC_URL: ${{ secrets.BSC_ARCHIVE_RPC_URL }}
+        run: forge test --match-contract 'VaultForkTest|AuditFixesTest|AllStocksForkTest'
