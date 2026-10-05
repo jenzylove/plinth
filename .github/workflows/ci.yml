@@ -1,0 +1,42 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: core math and backtests
+        working-directory: packages/core
+        run: npm ci && npm test && npx tsc --noEmit
+      - name: keeper policy and isolation
+        working-directory: packages/keeper
+        run: npm ci && npm test && npx tsc --noEmit
+      - name: app build
+        working-directory: app
+        run: npm ci && npm run build
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: contract math (no network)
+        working-directory: contracts
+        run: forge test --match-contract FloorMathTest
+  fork:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: fork tests against BSC mainnet at a pinned block
+        working-directory: contracts
+        env:
+          BSC_ARCHIVE_RPC_URL: ${{ secrets.BSC_ARCHIVE_RPC_URL || 'https://bsc-mainnet.public.blastapi.io' }}
+        run: forge test --match-contract 'VaultForkTest|AuditFixesTest|AllStocksForkTest'
