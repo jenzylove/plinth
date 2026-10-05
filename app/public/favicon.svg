@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="84" height="84" role="img" aria-label="Plinth">
+  <circle cx="16" cy="16" r="16" fill="#ff4d1f"/>
+  <rect x="8" y="19" width="16" height="4" rx="2" fill="#fff"/>
+  <rect x="13" y="9" width="6" height="10" rx="2" fill="#fff"/>
+</svg>

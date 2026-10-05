@@ -152,7 +152,7 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
               <div><dt>In {sym ?? 'stock'}</dt><dd>{usd(stockUsd, 2)} (target {usd(n(s.target), 2)}, multiplier {n(s.multiplier)} of cap {n(s.cap)})</dd></div>
               <div><dt>Price</dt><dd>
                 {usd(n(s.price), 2)}{v.version === 3
-                  ? <>: the lower of the slow reference {usd(n(s.slowPrice), 2)} (Venus's feed or the 10-minute pool average) and the 60-second average {usd(n(s.fastPrice), 2)} once the live pool price confirms it</>
+                  ? <>: the lower of the slow reference {usd(n(s.slowPrice), 2)} (Venus's feed or the 10 minute pool average) and the 60 second average {usd(n(s.fastPrice), 2)} once the live pool price confirms it</>
                   : <>, the lower of {usd(n(s.slowPrice), 2)} (slow) and {usd(n(s.fastPrice), 2)} (fast)</>}
                 {ref && <>. Binance RWA Data API: bStock {usd(ref.tokenPrice, 2)}, underlying stock {usd(ref.referencePrice, 2)}</>}
                 {rfq && <>. Binance Trading API best route for this stock: {usd(rfq.usdtOut, 2)} via {rfq.vendor} (indicative; RFQ routes need a wallet signature a vault cannot give)</>}

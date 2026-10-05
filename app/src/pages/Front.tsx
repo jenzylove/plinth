@@ -241,7 +241,7 @@ export function Front() {
           <Reveal as="h2">What is going on here.</Reveal>
           {[
             ['A floor we defend, not a guarantee', `The floor today is your promise discounted at today's lending rate. The amount above it is the cushion, and only a multiple of the cushion goes into the stock (${stock && calc ? `for ${usd(amount)} in ${name} today: a ${usd(Math.max(0, amount - calc.floor))} cushion times multiplier ${stock.cap} is about ${usd(calc.inStock)} in stock` : 'multiplier times cushion'}). When the stock falls, the cushion shrinks and the agent sells toward safety, so the floor is reached only if the stock drops more than the break distance before anyone can trade. The safe part alone does not grow to the promise: the strategy relies on rebalancing in time, on liquidity in the pool and on the lending rate. Each stock's multiplier comes from its price history; the risks are a fall bigger and faster than any in that history, the lending pool, USDT's peg and the contract itself.`],
-            ['Why 24/7 trading matters', `A bank desk can only sell when New York is open. bStocks keep trading at night and at weekends, and some falls happen there: META fell 11% and SanDisk 20% before the next open. The vault can sell during those hours. The same pools also print bad ticks (SPY at $1,086 for an hour against $750), so the vault never values the stock above a slow reference (Venus's feed or a 10-minute pool average), counts a fall from the 60-second average only once the live pool price confirms it, and ignores a hole that has recovered. On a fork, holes of 5 to 60 seconds that recovered moved nothing; a 2-minute one trimmed a little. A crash that lasts is sold within about a minute.`],
+            ['Why 24/7 trading matters', `A bank desk can only sell when New York is open. bStocks keep trading at night and at weekends, and some falls happen there: META fell 11% and SanDisk 20% before the next open. The vault can sell during those hours. The same pools also print bad ticks (SPY at $1,086 for an hour against $750), so the vault never values the stock above a slow reference (Venus's feed or a 10 minute pool average), counts a fall from the 60 second average only once the live pool price confirms it, and ignores a hole that has recovered. On a fork, holes of 5 to 60 seconds that recovered moved nothing; a 2-minute one trimmed a little. A crash that lasts is sold within about a minute.`],
             ['Where the safe money sits', `Only Venus core and Aave stablecoin markets, no CeDeFi, no synthetic dollars, even where the yield is higher. Before every move the vault checks cash, how much is lent out (92% at most), pauses and the USDT price feed. If no pool passes, the money waits in USDT and the floor keeps the last healthy rate for up to 7 days.`],
             ['What you can do any time', `Withdraw at today's value, or, if a pool or market is not trading, leave with your holdings as they are. The vault is a contract only you can withdraw from. The keeper can rebalance, cut risk at once and raise it back one step per four hours, and nothing else.`],
           ].map(([q, a], i) => (
@@ -279,7 +279,7 @@ export function Front() {
               <li><b>Call</b> <code>open({stock?.id ?? '…'}, {bps}, {amount}e18)</code> on the factory. Your vault is created and the money goes to work in the same transaction.</li>
               <li><b>Watch it</b> at <code>/vault/&lt;your vault&gt;</code>: value, floor, break distance and every action with a BscScan link.</li>
             </ol>
-            <p className="muted">Developer mode contract-call, preview first, then execute. Positions live in your vault, not in the wallet.</p>
+            <p className="muted">Developer mode contract call, preview first, then execute. Positions live in your vault, not in the wallet.</p>
           </Reveal>
       </section>
 
@@ -294,7 +294,7 @@ export function Front() {
             </dd></div>}
             <div><dt>Floor assumes</dt><dd>{pct(calc.rate, 2)} a year (the safe leg's rate, capped at {pct(live!.maxFloorRate, 0)})</dd></div>
             <div><dt>Multiplier</dt><dd>{stock.cap} for {name}, the highest with no floor breaks over 10 years (read from the factory)</dd></div>
-            <div><dt>10-year test</dt><dd>
+            <div><dt>ten year test</dt><dd>
               {bps === 10_000 && cal ? <>{cal.windows} windows from {cal.from}: lowest {usd(cal.min * scale, 2)}, typical {usd(cal.median * scale)}, best {usd(cal.max * scale)}, beat plain lending {pct(cal.beatSafeOnly, 0)} of the time. </> : 'Covers the 100% floor. '}
               {calibration.source}, {calibration.generated.slice(0, 10)}.
             </dd></div>
@@ -396,7 +396,7 @@ export function Footer() {
       <div className="foot-cols">
         <div>
           <p className="foot-h">Plinth</p>
-          <p className="muted">Capital-protected savings on tokenized stocks. Not a guarantee: a floor we defend, with the risks named.</p>
+          <p className="muted">Capital protected savings on tokenized stocks. Not a guarantee: a floor we defend, with the risks named.</p>
         </div>
         <div>
           <p className="foot-h">On chain</p>
