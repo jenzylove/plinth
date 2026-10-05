@@ -17,7 +17,10 @@ const factory = parseAbi([
   'function vaultsOf(address saver) view returns (address[])',
   'event VaultOpened(address indexed saver, address indexed vault, uint256 indexed stockId, uint256 amount, uint256 promiseBps)',
 ]);
-const vault = parseAbi(['function withdraw(uint256 share)', 'function withdrawInKind(uint256 share, bool includeStock)']);
+const vault = parseAbi([
+  'function withdraw(uint256 share)', 'function withdrawInKind(uint256 share, bool includeStock)',
+  'function beginExit()', 'function cancelExit()',
+]);
 
 export const hasWallet = () => typeof window !== 'undefined' && !!window.ethereum;
 
@@ -102,3 +105,15 @@ export async function withdraw(account: Address, vaultAddr: Address, fraction: n
   if (receipt.status !== 'success') throw new Error('The withdrawal reverted.');
   return hash;
 }
+
+async function send(account: Address, vaultAddr: Address, functionName: 'beginExit' | 'cancelExit'): Promise<Hash> {
+  const { request } = await client.simulateContract({ account, address: vaultAddr, abi: vault, functionName });
+  const hash = await wallet().writeContract(request);
+  const receipt = await client.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('The transaction reverted.');
+  return hash;
+}
+
+/** Staged exit: target exposure goes to zero and each rebalance sells up to one trade of stock. */
+export const beginExit = (account: Address, vaultAddr: Address) => send(account, vaultAddr, 'beginExit');
+export const cancelExit = (account: Address, vaultAddr: Address) => send(account, vaultAddr, 'cancelExit');

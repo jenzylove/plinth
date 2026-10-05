@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Address, Hash } from 'viem';
-import { BSCSCAN, openLimits } from './chain';
+import { BSCSCAN, client, openLimits } from './chain';
 import { short, usd } from './format';
 import { approve, hasWallet, openVault, usdtState, usdtUnits, vaultsOf } from './wallet';
 import { connect, useAccount } from './account';
@@ -22,15 +22,23 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ hash: Hash; vault: Address } | null>(null);
   const [mine, setMine] = useState<Address[]>([]);
+  const [bnb, setBnb] = useState<bigint | null>(null);
 
+  // What is signed is exactly what is shown: the amount in whole cents.
   const want = amount > 0 ? usdtUnits(amount) : 0n;
-  const amt = usd(amount, amount % 1 ? 2 : 0);
+  const signed = Number(want) / 1e18;
+  const amt = usd(signed, 2);
   const refresh = async (a: Address) => {
     const s = await usdtState(a);
     setBalance(s.balance); setAllowance(s.allowance);
+    setBnb(await client.getBalance({ address: a }).catch(() => null));
     setMine(await vaultsOf(a));
   };
-  useEffect(() => { if (account) { refresh(account).catch(() => {}); setStep('ready'); } }, [account]);
+  // A new account starts from a clean slate: no balance, allowance or vault list from the previous one.
+  useEffect(() => {
+    setBalance(null); setAllowance(0n); setMine([]); setBnb(null); setDone(null); setError(null);
+    if (account) { refresh(account).catch(() => {}); setStep('ready'); }
+  }, [account]);
   // The factory's limits for this stock: the smallest first deposit and the most one vault may hold.
   const [limits, setLimits] = useState<{ minOpen: number; maxVault: number | null } | null>(null);
   useEffect(() => { if (stockId !== undefined) openLimits(stockId).then(setLimits).catch(() => setLimits(null)); }, [stockId]);
@@ -69,7 +77,9 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
             {account ? <p className="muted">{short(account)} on BSC · {balance === null ? 'reading…' : `${usd(Number(balance) / 1e18, 2)} USDT`}</p>
               : <p className="muted">{hasWallet() ? 'Binance Web3 Wallet, MetaMask or Trust. We switch it to BSC.' : 'No wallet in this browser. Open this page in Binance Web3 Wallet or install MetaMask.'}</p>}
           </div>
-          {!account && <button className="pill dark" disabled={busy || !hasWallet()} onClick={onConnect}>{connecting ? 'Connecting…' : 'Connect'}</button>}
+          {!account && (hasWallet()
+        ? <button className="pill dark" disabled={busy} onClick={onConnect}>{connecting ? 'Connecting…' : 'Connect'}</button>
+        : <a className="pill dark" href={`https://metamask.app.link/dapp/${typeof location !== 'undefined' ? location.host : 'plinth-savings.vercel.app'}`}>Open in a wallet app</a>)}
         </li>
         <li className={!account ? '' : approved ? 'ok' : 'now'}>
           <span>2</span>
@@ -90,6 +100,7 @@ export function Deposit({ stockId, bps, amount, name, onAmount }: { stockId?: nu
           )}
         </li>
       </ol>
+      {account && bnb !== null && bnb < 300_000_000_000_000n && <p className="fail">This wallet has {(Number(bnb) / 1e18).toFixed(5)} BNB. Approving and depositing need a little BNB for gas (about 0.0003 BNB, a few cents). Send some BNB (BNB Smart Chain) to {short(account)} first.</p>}
       {tooSmall && <p className="fail">The smallest first deposit is {usd(limits!.minOpen, 2)}.</p>}
       {tooBig && <p className="fail">One vault holds at most {usd(limits!.maxVault!)} for this stock, so a full move to safety takes a few trades of at most $10k each. <button className="linkish" onClick={() => onAmount(limits!.maxVault!)}>Use {usd(limits!.maxVault!)}</button></p>}
       {account && balance === 0n && <p className="fail">This wallet has no USDT on BSC yet. Send any amount of USDT (BEP-20, BNB Smart Chain) to {short(account)}, then come back. </p>}

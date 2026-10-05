@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { floorValue, startingExposure, YEAR_SECONDS } from '@core/cppi';
 import {
   BSCSCAN, DEMO_VAULT, FACTORY, GATE_CODES, RELAY, bestMarket, currentKeeper, factoryTerms, listedStocks, rwaPrice, safeMarkets,
-  sellQuote, usdtEarnProducts, vaultStatus, type DefiProduct, type ListedStock, type SafeMarket,
+  routeName, routeRoundTrip, usdtEarnProducts, vaultStatus, type DefiProduct, type ListedStock, type SafeMarket,
 } from '../chain';
 import type { Address } from 'viem';
 import { calibration, calibrationOf, gapOf, NAMES, replays, symOf } from '../data';
@@ -38,7 +38,7 @@ export function Front() {
   const [amount, setAmount] = useState(1000);
   const [open, setOpen] = useState<number | null>(0);
   const [defi, setDefi] = useState<DefiProduct[] | null>(null);
-  const [roundTrip, setRoundTrip] = useState<{ cost: number; vendor: string } | null>(null);
+  const [roundTrip, setRoundTrip] = useState<{ cost: number; route: string } | null>(null);
 
   useEffect(() => {
     Promise.all([safeMarkets(amount), factoryTerms(), listedStocks()])
@@ -73,20 +73,19 @@ export function Front() {
     return { rate, promise, floor, inStock, months: Math.round((live.termSeconds / YEAR_SECONDS) * 12) };
   }, [live, stock, market, amount, bps]);
 
-  // Leaving right after opening costs a round trip on the stock part. Price the sale with a live Binance Web3 API
-  // quote and assume the buy cost the same.
+  // Leaving right after opening costs a round trip on the stock part: quote the buy, then the sale of exactly what it
+  // bought, on the pool and fee tier the vault itself trades on. A stale answer never overwrites a newer one.
   useEffect(() => {
     setRoundTrip(null);
     if (!stock || !calc || calc.inStock <= 0) return;
-    const t = setTimeout(async () => {
-      try {
-        const p = await rwaPrice(stock.token as Address);
-        if (!p) return;
-        const q = await sellQuote(stock.token as Address, calc.inStock / p.tokenPrice);
-        if (q) setRoundTrip({ cost: 2 * q.cost, vendor: q.vendor });
-      } catch { /* no quote: the tile says so */ }
+    let alive = true;
+    const t = setTimeout(() => {
+      const route = { token: stock.token, fee: stock.fee, pancake: stock.pancake };
+      routeRoundTrip(route, calc.inStock)
+        .then((cost) => alive && setRoundTrip({ cost: Math.max(0, cost), route: routeName(route) }))
+        .catch(() => { /* no quote: the tile says so */ });
     }, 700);
-    return () => clearTimeout(t);
+    return () => { alive = false; clearTimeout(t); };
   }, [stock?.token, calc?.inStock]);
 
   const scale = amount / 1000; // the backtest is per $1,000
@@ -108,15 +107,15 @@ export function Front() {
       {/* ------------------------------------------------------------ hero */}
       <section className="hero">
         <h1 className="headline">
-          <span className="w">Get</span> <span className="w">your</span>{' '}
-          <span className="dot red"><Shield /></span> <span className="w">money</span>{' '}
-          <span className="w">back.</span>
+          <span className="w">Protect</span> <span className="w">your</span>{' '}
+          <span className="dot red"><Shield /></span> <span className="w">money.</span>
           <br />
           <span className="w grey">Keep</span> <span className="w grey">the</span>{' '}
           <span className="dot yellow"><Rise /></span> <span className="w">upside.</span>
         </h1>
         <p className="sub">
-          Deposit USDT, pick a stock. At 12 months you get at least your money back; until then part of it rides {name}.
+          Deposit USDT, pick a stock and a floor: up to 100% of what you put in, at 12 months. An agent rebalances your
+          money around the clock to defend that floor while part of it rides {name}. Defended by code, not guaranteed.
           Withdraw any time. Runs on BSC mainnet.
         </p>
         <div className="welcome">
@@ -128,7 +127,7 @@ export function Front() {
         <div className="calc card" id="start">
           <p className="sentence">
             Put{' '}
-            <span className="field money">$<input aria-label="Amount in USDT" type="number" min={0} step="any" value={amount} onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))} /></span>{' '}
+            <span className="field money">$<input aria-label="Amount in USDT" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(Math.max(0, Math.floor(Number(e.target.value) * 100) / 100 || 0))} /></span>{' '}
             into{' '}
             <span className="field">
               <select aria-label="Stock" value={sym} onChange={(e) => setSym(e.target.value)}>
@@ -152,10 +151,18 @@ export function Front() {
           {calc && (
             <div className="calc-out">
               <div className="stat"><span>Works in {name}</span><strong><CountUp value={calc.inStock} format={(x) => usd(x)} /></strong></div>
-              <div className="stat"><span>Back at {calc.months} months, at least</span><strong><CountUp value={calc.promise} format={(x) => usd(x)} /></strong></div>
+              <div className="stat"><span>Floor at {calc.months} months</span><strong><CountUp value={calc.promise} format={(x) => usd(x)} /></strong>
+                <small className="muted">the target the strategy defends; today's floor is {usd(calc.floor)}</small></div>
               <div className="stat"><span>Leave right after</span><strong>{roundTrip ? <CountUp value={amount - roundTrip.cost} format={(x) => usd(x, 2)} /> : '…'}</strong>
-                <small className="muted">{roundTrip ? `a round trip at a live ${roundTrip.vendor} quote` : 'asking the Binance Web3 API'}; the floor today is {usd(calc.floor)}</small></div>
+                <small className="muted">{roundTrip ? `buy and sell on the ${roundTrip.route} the vault uses, quoted now` : `quoting the vault's own pool`}</small></div>
             </div>
+          )}
+          {calc && (
+            <p className="muted small conditions">
+              The floor holds if the agent can trade before {name} falls more than the break distance, the lending market
+              pays out, and USDT keeps its peg. Rates float: if they fall, the floor rises and less stays in {name}. It is
+              defended by the contract's rules, with no insurer behind it.
+            </p>
           )}
           {calc && <Deposit stockId={stock?.id} bps={bps} amount={amount} name={name} onAmount={setAmount} />}
         </div>
@@ -164,7 +171,7 @@ export function Front() {
       {/* ------------------------------------------------------------ how it works */}
       <section className="how" id="how">
         <div className="split">
-          <Reveal as="h2">Your money in two parts, and a keeper that never sleeps.</Reveal>
+          <Reveal as="h2">Your money in two parts, and an agent that rebalances them around the clock.</Reveal>
           <Reveal as="p" delay={120} className="muted">
             The same method bank desks have sold for 40 years, with one change: tokenized stocks trade at 3am on a Sunday,
             so Plinth can move to safety when a bank desk cannot.
@@ -233,8 +240,8 @@ export function Front() {
         <div className="acc">
           <Reveal as="h2">What is going on here.</Reveal>
           {[
-            ['A floor we defend, not a guarantee', `The vault keeps enough in safe lending that, grown at today's rate, it reaches your promise at 12 months. Everything above that line can go into the stock. A drop bigger than the break distance before anyone can trade would break the floor: that is the named risk, and it is why each stock's multiplier comes from its worst day in 10 years.`],
-            ['Why 24/7 trading matters', `A bank desk can only sell when New York is open. bStocks keep trading at night and at weekends, and some falls happen there: META fell 11% and SanDisk 20% before the next open. The vault can sell during those hours. The same pools also print bad ticks (SPY at $1,086 for an hour against $750), so the vault prices the stock at the lower of a 10-minute and a 60-second average: real falls count within a minute, spikes and one-minute holes do not.`],
+            ['A floor we defend, not a guarantee', `The floor today is your promise discounted at today's lending rate. The amount above it is the cushion, and only a multiple of the cushion goes into the stock (${stock && calc ? `for ${usd(amount)} in ${name} today: a ${usd(Math.max(0, amount - calc.floor))} cushion times multiplier ${stock.cap} is about ${usd(calc.inStock)} in stock` : 'multiplier times cushion'}). When the stock falls, the cushion shrinks and the agent sells toward safety, so the floor is reached only if the stock drops more than the break distance before anyone can trade. The safe part alone does not grow to the promise: the strategy relies on rebalancing in time, on liquidity in the pool and on the lending rate. Each stock's multiplier comes from its price history; the risks are a fall bigger and faster than any in that history, the lending pool, USDT's peg and the contract itself.`],
+            ['Why 24/7 trading matters', `A bank desk can only sell when New York is open. bStocks keep trading at night and at weekends, and some falls happen there: META fell 11% and SanDisk 20% before the next open. The vault can sell during those hours. The same pools also print bad ticks (SPY at $1,086 for an hour against $750), so the vault never values the stock above a slow reference (Venus's feed or a 10-minute pool average), counts a fall from the 60-second average only once the live pool price confirms it, and ignores a hole that has recovered. On a fork, holes of 5 to 60 seconds that recovered moved nothing; a 2-minute one trimmed a little. A crash that lasts is sold within about a minute.`],
             ['Where the safe money sits', `Only Venus core and Aave stablecoin markets, no CeDeFi, no synthetic dollars, even where the yield is higher. Before every move the vault checks cash, how much is lent out (92% at most), pauses and the USDT price feed. If no pool passes, the money waits in USDT and the floor keeps the last healthy rate for up to 7 days.`],
             ['What you can do any time', `Withdraw at today's value, or, if a pool or market is not trading, leave with your holdings as they are. The vault is a contract only you can withdraw from. The keeper can rebalance, cut risk at once and raise it back one step per four hours, and nothing else.`],
           ].map(([q, a], i) => (
@@ -306,7 +313,12 @@ function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo:
   useEffect(() => {
     fetch(`https://plinth-relay.vercel.app/api/vault-log?vault=${DEMO_VAULT}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setLast(d?.rows?.[0] ? d.rows[0].detail.split(';')[0] : 'history unavailable'))
+      // Only what the agent or the vault did, not the saver's own deposits and withdrawals.
+      .then((d) => {
+        const keep = new Set(['MultiplierSet', 'Rebalanced', 'Traded', 'PulledOut', 'MovedSafeLeg', 'Impaired']);
+        const row = d?.rows?.find((r: { event: string }) => keep.has(r.event));
+        setLast(row ? row.detail.split(';')[0] : d ? 'no keeper action yet' : 'history unavailable');
+      })
       .catch(() => setLast('history unavailable'));
   }, []);
   const n = (x: bigint) => Number(x) / 1e18;

@@ -154,7 +154,7 @@ export function bestMarket(ms: SafeMarket[]): SafeMarket | null {
   return ms.filter((m) => m.gateCode === 0).reduce<SafeMarket | null>((a, b) => (!a || b.rate > a.rate ? b : a), null);
 }
 
-export interface ListedStock { id: number; token: Address; cap: number; enabled: boolean }
+export interface ListedStock { id: number; token: Address; cap: number; enabled: boolean; fee: number; pancake: boolean }
 
 export async function listedStocks(): Promise<ListedStock[]> {
   const n = Number(await client.readContract({ address: FACTORY, abi: factoryAbi, functionName: 'stockCount' }));
@@ -164,7 +164,7 @@ export async function listedStocks(): Promise<ListedStock[]> {
       client.readContract({ address: FACTORY, abi: factoryAbi, functionName: 'liveCap', args: [BigInt(id)] }),
       client.readContract({ address: FACTORY, abi: factoryAbi, functionName: 'stockEnabled', args: [BigInt(id)] }),
     ]);
-    return { id, token: cfg.token, cap: fromWad(cap), enabled };
+    return { id, token: cfg.token, cap: fromWad(cap), enabled, fee: cfg.fee, pancake: cfg.pancake };
   }));
 }
 
@@ -179,7 +179,7 @@ export async function factoryTerms() {
 /** The keeper the factory trusts right now (the owner can move it). */
 export const currentKeeper = () => client.readContract({ address: FACTORY, abi: factoryAbi, functionName: 'keeper' });
 
-export interface VaultStock { token: Address; maxSlippage: number; maxTrade: number | null; maxVault: number | null }
+export interface VaultStock { token: Address; fee: number; pancake: boolean; maxSlippage: number; maxTrade: number | null; maxVault: number | null }
 
 /** One vault, read live. Reads v3, and falls back to v2's and v1's shorter layouts (longest first, so a shorter
  *  layout never misreads a longer one). */
@@ -193,7 +193,7 @@ export async function vaultStatus(vault: Address) {
       client.readContract({ address: vault, abi: vaultAbi, functionName: 'status' }),
       client.readContract({ address: vault, abi: vaultAbi, functionName: 'stock' }),
     ]);
-    const stock: VaultStock = { token: cfg.token, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: fromWad(cfg.maxTrade), maxVault: fromWad(cfg.maxVault) };
+    const stock: VaultStock = { token: cfg.token, fee: cfg.fee, pancake: cfg.pancake, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: fromWad(cfg.maxTrade), maxVault: fromWad(cfg.maxVault) };
     return { s, stock, stockId: Number(stockId), saver, version: 3 as 1 | 2 | 3 };
   } catch { /* not v3 */ }
   try {
@@ -202,7 +202,7 @@ export async function vaultStatus(vault: Address) {
       client.readContract({ address: vault, abi: vaultAbi, functionName: 'stock' }),
     ]);
     const s = { ...s2, excess: 0n, impaired: false, exiting: false };
-    const stock: VaultStock = { token: cfg.token, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: fromWad(cfg.maxTrade), maxVault: fromWad(cfg.maxVault) };
+    const stock: VaultStock = { token: cfg.token, fee: cfg.fee, pancake: cfg.pancake, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: fromWad(cfg.maxTrade), maxVault: fromWad(cfg.maxVault) };
     return { s, stock, stockId: Number(stockId), saver, version: 2 as 1 | 2 | 3 };
   } catch {
     const [s1, cfg] = await Promise.all([
@@ -210,7 +210,7 @@ export async function vaultStatus(vault: Address) {
       client.readContract({ address: vault, abi: vaultAbiV1, functionName: 'stock' }),
     ]);
     const s = { ...s1, slowPrice: s1.price, fastPrice: s1.price, nextRaiseAt: 0n, idleSince: 0n, excess: 0n, impaired: false, exiting: false };
-    const stock: VaultStock = { token: cfg.token, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: null, maxVault: null };
+    const stock: VaultStock = { token: cfg.token, fee: cfg.fee, pancake: cfg.pancake, maxSlippage: fromWad(cfg.maxSlippage), maxTrade: null, maxVault: null };
     return { s, stock, stockId: Number(stockId), saver, version: 1 as 1 | 2 | 3 };
   }
 }
@@ -275,4 +275,36 @@ export async function sellQuote(token: Address, tokens: number): Promise<{ usdtO
   // Cost against the quote's own mid price, so a small gap between price sources does not read as a cost or a gain.
   const mid = Number(q.fromToken?.tokenUnitPrice ?? 0) * tokens;
   return { usdtOut, cost: mid > 0 ? Math.max(0, mid - usdtOut) : 0, vendor: q.vendorName, impact: Number(q.priceImpactPercent ?? 0) };
+}
+
+// ---------------------------------------------------------------- the vault's own route
+
+const QUOTER = { pancake: '0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997', uniswap: '0x78D78E420Da98ad378D7799bE8f4AF69033EB077' } as const;
+const quoterAbi = parseAbi([
+  'function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96) params) returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)',
+]);
+export interface Route { token: Address; fee: number; pancake: boolean }
+export const routeName = (r: Route) => `${r.pancake ? 'PancakeSwap' : 'Uniswap'} v3 ${(r.fee / 10_000).toFixed(2)}% pool`;
+
+/** What the vault itself would get: an exact-input quote on the same pool and fee tier its swaps use. */
+async function quote(r: Route, tokenIn: Address, tokenOut: Address, amountIn: bigint): Promise<bigint> {
+  const { result } = await client.simulateContract({
+    address: r.pancake ? QUOTER.pancake : QUOTER.uniswap, abi: quoterAbi, functionName: 'quoteExactInputSingle',
+    args: [{ tokenIn, tokenOut, amountIn, fee: r.fee, sqrtPriceLimitX96: 0n }],
+  });
+  return result[0];
+}
+
+/** USDT out for selling `tokens` of the stock through the vault's route. */
+export async function routeSell(r: Route, tokens: number): Promise<number> {
+  if (!(tokens > 0)) return 0;
+  return fromWad(await quote(r, r.token, USDT, BigInt(Math.floor(tokens * 1e12)) * 10n ** 6n));
+}
+
+/** A real round trip on the vault's route: buy with `usd`, then sell what that bought. Returns the cost in USDT. */
+export async function routeRoundTrip(r: Route, usd: number): Promise<number> {
+  if (!(usd > 0)) return 0;
+  const tokens = await quote(r, USDT, r.token, BigInt(Math.floor(usd * 1e6)) * 10n ** 12n);
+  const back = await quote(r, r.token, USDT, tokens);
+  return usd - fromWad(back);
 }

@@ -13,11 +13,19 @@ export function Proof() {
         vault on mainnet (<a href="/demo">open it</a>).
       </p>
 
-      <h2>10 years, every 12-month window</h2>
+      <h2>10 years of 12-month windows</h2>
       <p className="muted">
         {calibration.source}. Floor 100%, safe leg {pct(cfg.rate)} a year, {pct(cfg.cost)} cost per trade, rebalance
-        when the stock leg drifts {pct(cfg.band, 0)} from target. A window counts as a miss if it ends more than 50 cents per
-        $1,000 below the floor. Rule: {calibration.rule}. Generated {calibration.generated.slice(0, 10)}.
+        when the stock leg drifts {pct(cfg.band, 0)} from target. Rule: {calibration.rule}. Generated {calibration.generated.slice(0, 10)}.
+      </p>
+      <p className="muted small">
+        How to read it, plainly: a window starts every 5 trading days (not every day), so about 450 windows per stock.
+        A window counts as a miss only if it ends more than 50 cents per $1,000 below the floor, so a "lowest" just under
+        $1,000 (NVDA $999.59, NFLX $999.55) is not counted as a miss. The end value is gross: stock still held at the end is
+        valued at the close, not sold, so the cost of the final sale is not taken off. The safe leg earns a fixed
+        {' '}{pct(cfg.rate)} a year, while the contract uses the live, floating rate. Prices are daily; nothing inside the day is
+        modelled. The multiplier is chosen on the same history it is tested on (in-sample), so the zero-miss record is
+        the selection rule, not an out-of-sample result. Stocks with under 2 years of history run at 3 by rule, not by test.
       </p>
       <div className="table-wrap">
         <table>
@@ -194,8 +202,11 @@ function AlwaysOn() {
       </div>
       <p className="muted small">
         "Closest" is the lowest margin over the floor at any hour's low, before anyone can act. QQQ's one-minute print at
-        -31% (2026-09-09) touches the floor for all three for one hour. Hourly bars stand in for the vault's 60-second and
-        10-minute prices, so this shows direction and size, not exact dollars. {alwaysOn.rule} Code:{' '}
+        -31% (2026-09-09) touches the floor for all three for one hour. Hourly bars stand in for the vault's prices, and the
+        study's rule (the lower of this hour's and last hour's close) is a stand-in for the contract's (slow reference, 60-second
+        average confirmed by the live price), so this shows direction and size, not exact dollars. MSTR is left out of the
+        totals because of its broken 8-minute print, although MSTR vaults can still be opened. The fork test
+        test_M5_shortDownsidePrints measures the contract's own rule on 5 to 120 second holes. {alwaysOn.rule} Code:{' '}
         <code>packages/core/scripts/always-on.ts</code>, data from the Binance Web3 API.
       </p>
     </>

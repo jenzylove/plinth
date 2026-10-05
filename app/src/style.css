@@ -301,3 +301,5 @@ td:first-child { font: 500 15px var(--sans); }
 }
 .log li, .sources dd { overflow-wrap: anywhere; }
 .log li > * { min-width: 0; }
+.conditions { margin: 14px 0 0; max-width: 62em; line-height: 1.5; }
+.stat small { display: block; margin-top: 4px; font-size: 12px; line-height: 1.35; }

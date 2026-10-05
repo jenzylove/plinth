@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { Address } from 'viem';
-import { BSCSCAN, GATE_CODES, RELAY, client, factoryAbi, rwaPrice, sellQuote, vaultStatus } from '../chain';
+import { BSCSCAN, GATE_CODES, RELAY, client, factoryAbi, routeName, routeSell, rwaPrice, sellQuote, vaultStatus } from '../chain';
 import { NAMES, symOf } from '../data';
 import { pct, short, usd } from '../format';
 import { CountUp, Reveal } from '../motion';
-import { canWithdraw, hasWallet, withdraw, withdrawInKind } from '../wallet';
+import { beginExit, canWithdraw, cancelExit, hasWallet, withdraw, withdrawInKind } from '../wallet';
 import { connect, useAccount } from '../account';
 import { Footer } from './Front';
 
@@ -12,7 +12,8 @@ type Status = Awaited<ReturnType<typeof vaultStatus>>;
 const MARKETS = ['Plain USDT (earning nothing)', 'Venus', 'Aave'];
 
 interface LogRow { event: string; block: number; tx: string; time?: number; detail: string; logIndex?: number }
-interface Exit { value: number; cost: number; vendor: string }
+interface Exit { value: number; cost: number }
+interface Rfq { usdtOut: number; vendor: string }
 
 const when = (t: number) => new Date(t * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 
@@ -24,6 +25,7 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
   const [readAt, setReadAt] = useState<Date | null>(null);
   const [keeper, setKeeper] = useState<Address | null>(null);
   const [exit, setExit] = useState<Exit | null | 'unavailable'>(null);
+  const [rfq, setRfq] = useState<Rfq | null>(null);
   const [ref, setRef] = useState<{ tokenPrice: number; referencePrice: number } | null>(null);
   const [normalOk, setNormalOk] = useState<boolean | null>(null);
   const [wd, setWd] = useState<string | null>(null);
@@ -31,14 +33,21 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
   const { account } = useAccount();
 
   useEffect(() => {
-    const load = () => vaultStatus(address).then((x) => { setV(x); setReadAt(new Date()); setError(null); }).catch((e) => setError(String(e?.shortMessage ?? e?.message ?? e)));
-    load();
-    const t = setInterval(load, 30_000);
-    fetch(`${RELAY}/api/vault-log?vault=${address}`)
+    // Status every 30 s; history every 60 s. A late answer from an older request never overwrites a newer one.
+    let alive = true, seq = 0;
+    const load = () => {
+      const mine = ++seq;
+      vaultStatus(address)
+        .then((x) => { if (alive && mine === seq) { setV(x); setReadAt(new Date()); setError(null); } })
+        .catch((e) => alive && setError(String(e?.shortMessage ?? e?.message ?? e)));
+    };
+    const history = () => fetch(`${RELAY}/api/vault-log?vault=${address}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`history service answered ${r.status}`))))
-      .then((d) => setLog(d.rows))
-      .catch((e) => setLogError(String(e.message ?? e)));
-    return () => clearInterval(t);
+      .then((d) => { if (alive) { setLog(d.rows); setLogError(null); } })
+      .catch((e) => alive && setLogError(String(e.message ?? e)));
+    load(); history();
+    const t = setInterval(load, 30_000), h = setInterval(history, 60_000);
+    return () => { alive = false; clearInterval(t); clearInterval(h); };
   }, [address, tick]);
 
   // The keeper is whoever the vault's own factory names.
@@ -48,23 +57,26 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
       .then(setKeeper).catch(() => setKeeper(null));
   }, [address]);
 
-  // Leaving today: the safe leg comes back as USDT; the stock leg is priced by a live Binance Web3 API quote.
+  // Leaving today: the safe leg comes back as USDT; the stock leg is priced on the vault's own pool and fee tier (the
+  // only route its swaps can take). The Binance Trading API's best route is shown beside it as an indicative price:
+  // its RFQ routes need a wallet signature a vault cannot give. Both refresh with every status read.
   const tokens = v && v.s.price > 0n ? Number(v.s.stockUsd) / Number(v.s.price) : 0;
-  const token = v?.stock.token;
   useEffect(() => {
-    if (!v || !token) return;
+    if (!v) return;
     const safe = Number(v.s.safeUsd) / 1e18;
-    if (tokens <= 0) { setExit({ value: safe, cost: 0, vendor: '' }); return; }
-    sellQuote(token, tokens)
-      .then((q) => setExit(q ? { value: safe + q.usdtOut, cost: q.cost, vendor: q.vendor } : 'unavailable'))
+    const stockUsd = Number(v.s.stockUsd) / 1e18;
+    if (tokens <= 0) { setExit({ value: safe, cost: 0 }); setRfq(null); return; }
+    routeSell(v.stock, tokens)
+      .then((out) => setExit({ value: safe + out, cost: Math.max(0, stockUsd - out) }))
       .catch(() => setExit('unavailable'));
-    rwaPrice(token).then(setRef).catch(() => setRef(null));
-  }, [token, Math.round(tokens * 1e4)]);
+    sellQuote(v.stock.token, tokens).then((q) => setRfq(q ? { usdtOut: q.usdtOut, vendor: q.vendor } : null)).catch(() => setRfq(null));
+    rwaPrice(v.stock.token).then(setRef).catch(() => setRef(null));
+  }, [readAt?.getTime()]);
 
   const isSaver = !!account && !!v && account.toLowerCase() === v.saver.toLowerCase();
   useEffect(() => {
     if (isSaver) canWithdraw(account!, address, 1).then(setNormalOk);
-  }, [isSaver, address, tick]);
+  }, [isSaver, address, tick, readAt?.getTime()]);
 
   const n = (x: bigint) => Number(x) / 1e18;
   const sym = v ? symOf(v.stock.token) : undefined;
@@ -102,14 +114,22 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
               <Reveal className="card" delay={240}>
                 <span>If you left today</span>
                 <strong>{exit === null ? '…' : exit === 'unavailable' ? usd(total, 2) : <CountUp value={exit.value} format={(x) => usd(x, 2)} />}</strong>
-                <small>{exit === null ? 'asking the Binance Web3 API for a quote' : exit === 'unavailable'
-                  ? `value now; a live quote was not available, and the sale may cost up to ${pct(v.stock.maxSlippage)} of the stock part`
-                  : exit.cost > 0 ? `safe part back in full, ${name} sold at a live ${exit.vendor} quote (${usd(exit.cost, 2)} cost)` : 'all in the safe part, back in full'}</small>
+                <small>{exit === null ? `quoting the vault's own pool` : exit === 'unavailable'
+                  ? `value now; the pool quote was not available, and the sale may cost up to ${pct(v.stock.maxSlippage)} of the stock part`
+                  : exit.cost > 0 ? `safe part back in full; ${name} sold on the ${routeName(v.stock)} the vault trades on (${usd(exit.cost, 2)} cost). An estimate at this moment, not a minimum.` : 'all in the safe part, back in full'}</small>
               </Reveal>
             </div>
 
+            {s.impaired && <p className="fail">The lending market failed its health check and is not paying out yet. The vault keeps tracking that position, only sells stock (never buys) and retries every rebalance.</p>}
+            {s.exiting && <p className="banner">Staged exit in progress: the keeper sells up to {usd(v.stock.maxTrade ?? 0)} of {name} per trade. {usd(stockUsd, 2)} of stock left; withdraw everything once it reaches $0.</p>}
+            {s.excess > 0n && <p className="muted">{usd(n(s.excess), 2)} arrived above this vault's principal cap and is held aside: not invested, paid back with any withdrawal.</p>}
             <div className="manage">
               {!account && hasWallet() && <button className="pill dark" onClick={() => connect()}>Connect to manage</button>}
+              {isSaver && v.version === 3 && !s.exiting && v.stock.maxTrade !== null && stockUsd > v.stock.maxTrade && (
+                <span className="muted">The {name} part is bigger than one trade ({usd(v.stock.maxTrade)}), so a full exit goes in steps.
+                  <button className="pill dark" onClick={() => run('Starting a staged exit…', () => beginExit(account!, address))}>Start staged exit</button></span>
+              )}
+              {isSaver && s.exiting && <button className="pill dark" onClick={() => run('Cancelling the exit…', () => cancelExit(account!, address))}>Cancel staged exit</button>}
               {isSaver && normalOk !== false && [0.5, 1].map((f) => (
                 <button key={f} className={`pill ${f === 1 ? 'red' : 'dark'}`} onClick={() => run(f === 1 ? 'Withdrawing everything…' : 'Withdrawing half…', () => withdraw(account!, address, f))}>
                   Withdraw {f === 1 ? 'all' : 'half'} at today's value
@@ -129,14 +149,17 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
             <dl className="sources" style={{ marginTop: 24 }}>
               <div><dt>In {sym ?? 'stock'}</dt><dd>{usd(stockUsd, 2)} (target {usd(n(s.target), 2)}, multiplier {n(s.multiplier)} of cap {n(s.cap)})</dd></div>
               <div><dt>Price</dt><dd>
-                {usd(n(s.price), 2)}, the lower of {usd(n(s.slowPrice), 2)} (slow: {v.version === 2 ? "Venus's feed or the 10-minute pool average" : 'reference'}) and {usd(n(s.fastPrice), 2)} (fast: 60-second pool average)
-                {ref && <>. Binance Web3 API: bStock {usd(ref.tokenPrice, 2)}, underlying stock {usd(ref.referencePrice, 2)}</>}
+                {usd(n(s.price), 2)}{v.version === 3
+                  ? <>: the lower of the slow reference {usd(n(s.slowPrice), 2)} (Venus's feed or the 10-minute pool average) and the 60-second average {usd(n(s.fastPrice), 2)} once the live pool price confirms it</>
+                  : <>, the lower of {usd(n(s.slowPrice), 2)} (slow) and {usd(n(s.fastPrice), 2)} (fast)</>}
+                {ref && <>. Binance RWA Data API: bStock {usd(ref.tokenPrice, 2)}, underlying stock {usd(ref.referencePrice, 2)}</>}
+                {rfq && <>. Binance Trading API best route for this stock: {usd(rfq.usdtOut, 2)} via {rfq.vendor} (indicative; RFQ routes need a wallet signature a vault cannot give)</>}
               </dd></div>
               <div><dt>Safe leg</dt><dd>{usd(n(s.safeUsd), 2)} in {MARKETS[Number(s.marketIndex)] ?? `market ${s.marketIndex}`}, {pct(n(s.floorRate), 2)} a year, {GATE_CODES[s.gateCode] ?? `gate code ${s.gateCode}`}
                 {s.idleSince > 0n && <> · waiting in USDT since {when(Number(s.idleSince))}; the floor keeps the last healthy rate for 7 days</>}</dd></div>
               <div><dt>Saver</dt><dd><a href={`${BSCSCAN}/address/${v.saver}`}>{short(v.saver)}</a></dd></div>
-              <div><dt>Keeper</dt><dd>{keeper ? <a href={`${BSCSCAN}/address/${keeper}`}>{short(keeper)}</a> : 'none'} (cuts risk at once; raises it back one step per four hours{v.version === 2 && raiseAt > now ? `, next raise from ${when(raiseAt)}` : ''}; cannot withdraw)</dd></div>
-              {v.version === 1 && <div><dt>Contract</dt><dd>Plinth v1. New vaults open on v2, which follows crashes within a minute.</dd></div>}
+              <div><dt>Keeper</dt><dd>{keeper ? <a href={`${BSCSCAN}/address/${keeper}`}>{short(keeper)}</a> : 'none'} (cuts risk at once; raises it back one step per four hours{v.version >= 2 && raiseAt > now ? `, next raise from ${when(raiseAt)}` : ''}; cannot withdraw)</dd></div>
+              {v.version < 3 && <div><dt>Contract</dt><dd>Plinth v{v.version}, superseded. New vaults open on v3 (docs/DEPLOYMENTS.md lists what changed).</dd></div>}
             </dl>
           </>
         );
