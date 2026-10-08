@@ -9,6 +9,7 @@ import { calibration, calibrationOf, gapOf, NAMES, outcomes, replays, symOf, typ
 import { pct, short, usd, wad } from '../format';
 import { CountUp, FillText, Reveal, useScrollProgress } from '../motion';
 import { Deposit } from '../Deposit';
+import { humanize } from '../humanize';
 
 const FLOORS = [
   { bps: 10_000, label: 'get my money back' },
@@ -114,9 +115,8 @@ export function Front() {
           <span className="dot yellow"><Rise /></span> <span className="w">upside.</span>
         </h1>
         <p className="sub">
-          Deposit USDT, pick a stock and a floor: up to 100% of what you put in, at 12 months. An agent rebalances your
-          money around the clock to defend that floor while part of it rides {name}. Defended by code, not guaranteed.
-          Withdraw any time. Runs on BSC mainnet.
+          Pick a stock and how much you want back in a year. Part of your money rides the stock, the rest earns
+          interest, and an agent moves it toward safety, day and night, when the stock falls. Leave any time.
         </p>
         <div className="welcome">
           <span><i>1</i> Pick a stock and how much you want back</span>
@@ -126,15 +126,15 @@ export function Front() {
 
         <div className="calc card" id="start">
           <p className="sentence">
-            Put{' '}
-            <span className="field money">$<input aria-label="Amount in USDT" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(Math.max(0, Math.floor(Number(e.target.value) * 100) / 100 || 0))} /></span>{' '}
-            into{' '}
+            <span className="phrase">Put{' '}
+            <span className="field money">$<input aria-label="Amount in USDT" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(Math.max(0, Math.floor(Number(e.target.value) * 100) / 100 || 0))} /></span></span>{' '}
+            <span className="phrase">into{' '}
             <span className="field">
               <select aria-label="Stock" value={sym} onChange={(e) => setSym(e.target.value)}>
                 {(live?.stocks ?? [{ sym: 'NVDA' }]).map((s) => <option key={s.sym} value={s.sym}>{NAMES[s.sym] ?? s.sym}</option>)}
               </select>
-            </span>{' '}
-            and get <span className="field">{bps / 100}%</span> back
+            </span></span>{' '}
+            <span className="phrase">and get <span className="field">{bps / 100}%</span> back</span>
           </p>
           <div className="floor-slider">
             <span className="muted">More upside</span>
@@ -150,19 +150,18 @@ export function Front() {
           {!error && !calc && <p className="muted">Reading live rates and caps from BSC…</p>}
           {calc && (
             <div className="calc-out">
-              <div className="stat"><span>Works in {name}</span><strong><CountUp value={calc.inStock} format={(x) => usd(x)} /></strong></div>
+              <div className="stat"><span>Rides {name}</span><strong><CountUp value={calc.inStock} format={(x) => usd(x)} /></strong></div>
               <div className="stat"><span>Floor at {calc.months} months</span><strong><CountUp value={calc.promise} format={(x) => usd(x)} /></strong>
-                <small className="muted">the target the strategy defends; today's floor is {usd(calc.floor)}</small></div>
+                <small className="muted">what the vault defends for you</small></div>
               <div className="stat"><span>Leave right after</span><strong>{roundTrip ? <CountUp value={amount - roundTrip.cost} format={(x) => usd(x, 2)} /> : '…'}</strong>
-                <small className="muted">{roundTrip ? `buy and sell on the ${roundTrip.route} the vault uses, quoted now` : `quoting the vault's own pool`}</small></div>
+                <small className="muted">{roundTrip ? 'if you changed your mind now, a live quote' : 'getting a live quote'}</small></div>
             </div>
           )}
           {calc && <Outcomes sym={sym} name={name} bps={bps} amount={amount} />}
           {calc && (
             <p className="muted small conditions">
-              The floor holds if the agent can trade before {name} falls more than the break distance, the lending market
-              pays out, and USDT keeps its peg. Rates float: if they fall, the floor rises and less stays in {name}. It is
-              defended by the contract's rules, with no insurer behind it.
+              Defended by code, not guaranteed. The floor can break if {name} drops {calc.inStock > 0 ? pct((amount - calc.floor) / calc.inStock) : 'a lot'} or
+              more before anyone can trade, if the lending market fails, or if USDT loses its peg.
             </p>
           )}
           {calc && <Deposit stockId={stock?.id} bps={bps} amount={amount} name={name} onAmount={setAmount} />}
@@ -172,20 +171,19 @@ export function Front() {
       {/* ------------------------------------------------------------ how it works */}
       <section className="how" id="how">
         <div className="split">
-          <Reveal as="h2">Your money in two parts, and an agent that rebalances them around the clock.</Reveal>
+          <Reveal as="h2">Your money in two parts, and an agent watching both.</Reveal>
           <Reveal as="p" delay={120} className="muted">
-            The same method bank desks have sold for 40 years, with one change: tokenized stocks trade at 3am on a Sunday,
-            so Plinth can move to safety when a bank desk cannot.
+            Banks have sold protected savings like this for decades. Tokenized stocks trade at 3am on a Sunday, so
+            Plinth can move to safety when a bank cannot.
           </Reveal>
         </div>
         <div className="cards">
           <Reveal className="card step">
             <span className="tag yellow">1 · The safe part</span>
-            <h3>Most of it earns interest, behind a health check.</h3>
+            <h3>Most of it earns interest.</h3>
             <p className="muted">
-              Lent on {market?.name ?? 'Venus or Aave'} {market && <>at <b>{pct(market.rate, 2)}</b> a year, {pct(market.utilization)} lent out</>}.
-              If a pool gets crowded or paused, the vault pulls out first.
-              {defi && defi.length > 0 && <> The Binance DeFi API lists {defi.length} USDT products on BSC; Plinth uses only the {defi.filter((d) => d.allowed).length} plain lending markets.</>}
+              Lent on {market?.name ?? 'Venus or Aave'}{market && <> at <b>{pct(market.rate, 2)}</b> a year</>}. If the market
+              looks unhealthy, the vault pulls out first.
             </p>
             {calc && <div className="big"><CountUp value={amount - calc.inStock} format={(x) => usd(x)} /><small>of {usd(amount)}</small></div>}
           </Reveal>
@@ -193,58 +191,48 @@ export function Front() {
             <span className="tag red">2 · The stock part</span>
             <h3>The rest rides {name}.</h3>
             <p className="muted">
-              Sized so a single drop of {calc && calc.inStock > 0 ? <b>{pct((amount - calc.floor) / calc.inStock)}</b> : '–'} still leaves
-              you above the floor. {gap && <>{name}'s worst overnight gap in 10 years was <b>{pct(gap.worstGap)}</b> ({gap.on}).</>}
+              Sized so {name} could drop {calc && calc.inStock > 0 ? <b>{pct((amount - calc.floor) / calc.inStock)}</b> : '–'} in one go
+              and your floor still holds.
             </p>
             {calc && <div className="big"><CountUp value={calc.inStock} format={(x) => usd(x)} /><small>in {name}</small></div>}
           </Reveal>
           <Reveal className="card step black" delay={240}>
-            <span className="tag">3 · The keeper</span>
-            <h3>Rebalances 24/7 and cuts risk before big news.</h3>
+            <span className="tag">3 · The agent</span>
+            <h3>Watches every minute, and cuts risk before big news.</h3>
             <p>
-              Before earnings and jobs reports it lowers the multiplier. It can never withdraw, and never raise risk above the cap.
+              When the stock falls it sells toward safety. It can never withdraw your money.
             </p>
-            <div className="big">{stock ? stock.cap : '–'}<small>{name}'s multiplier cap</small></div>
+            <div className="big">24/7<small>nights and weekends too</small></div>
           </Reveal>
         </div>
       </section>
 
       {/* ------------------------------------------------------------ the big number */}
       <section className="proofband">
-        <Reveal className="huge">
-          <CountUp value={plinthAtGap} format={(x) => usd(x, 2)} />
+        <Reveal className="huge-wrap">
+          <p className="huge-kicker">Nvidia, 16 Nov 2018: opened {pct(Math.abs(gap?.worstGap ?? 0.193))} down</p>
+          <div className="huge"><CountUp value={plinthAtGap} format={(x) => usd(x, 2)} /></div>
+          <p className="huge-sub">still above the floor, on $1,000</p>
         </Reveal>
         <Reveal className="huge-note" delay={150}>
           <p>
-            <b>Above the floor</b> the morning Nvidia opened {pct(gap?.worstGap ?? -0.193)} on 2018-11-16, in a replay of
-            the real contracts on a copy of BSC mainnet. A bank desk running the same method was {usd(bankAtGap, 2)} above;
-            a desk making the same cut before the report, {usd(cutAtGap, 2)}.
+            We replayed that morning through Plinth's real contracts. A bank desk running the same method had
+            only <b>{usd(bankAtGap, 2)}</b> left above its floor. The difference: Plinth's agent cut risk before the earnings report.
           </p>
-          <p className="muted">
-            Most of the difference is the cut before earnings. Trading around the clock adds the rest, and on three months
-            of real bStock prices it cost about nothing. <a href="/proof">See every step</a>.
-          </p>
+          <p className="muted"><a href="/proof">See the replay</a></p>
         </Reveal>
       </section>
 
-      {/* ------------------------------------------------------------ scroll-filled line */}
-      <section className="fill">
-        <FillText
-          text="Protect what you put in, and still"
-          pill={`ride ${name}`}
-          pillWords={(live?.stocks ?? []).filter((x) => x.sym !== sym).slice(0, 4).map((x) => `ride ${NAMES[x.sym] ?? x.sym}`)}
-        />
-      </section>
 
       {/* ------------------------------------------------------------ explainer */}
       <section className="explain">
         <div className="acc">
-          <Reveal as="h2">What is going on here.</Reveal>
+          <Reveal as="h2">Questions.</Reveal>
           {[
-            ['A floor we defend, not a guarantee', `The floor today is your promise discounted at today's lending rate. The amount above it is the cushion, and only a multiple of the cushion goes into the stock (${stock && calc ? `for ${usd(amount)} in ${name} today: a ${usd(Math.max(0, amount - calc.floor))} cushion times multiplier ${stock.cap} is about ${usd(calc.inStock)} in stock` : 'multiplier times cushion'}). When the stock falls, the cushion shrinks and the agent sells toward safety, so the floor is reached only if the stock drops more than the break distance before anyone can trade. The safe part alone does not grow to the promise: the strategy relies on rebalancing in time, on liquidity in the pool and on the lending rate. Each stock's multiplier comes from its price history; the risks are a fall bigger and faster than any in that history, the lending pool, USDT's peg and the contract itself.`],
-            ['Why 24/7 trading matters', `A bank desk can only sell when New York is open. bStocks keep trading at night and at weekends, and some falls happen there: META fell 11% and SanDisk 20% before the next open. The vault can sell during those hours. The same pools also print bad ticks (SPY at $1,086 for an hour against $750), so the vault never values the stock above a slow reference (Venus's feed or a 10 minute pool average), counts a fall from the 60 second average only once the live pool price confirms it, and ignores a hole that has recovered. On a fork, holes of 5 to 60 seconds that recovered moved nothing; a 2-minute one trimmed a little. A crash that lasts is sold within about a minute.`],
-            ['Where the safe money sits', `Only Venus core and Aave stablecoin markets, no CeDeFi, no synthetic dollars, even where the yield is higher. Before every move the vault checks cash, how much is lent out (92% at most), pauses and the USDT price feed. If no pool passes, the money waits in USDT and the floor keeps the last healthy rate for up to 7 days.`],
-            ['What you can do any time', `Withdraw at today's value, or, if a pool or market is not trading, leave with your holdings as they are. The vault is a contract only you can withdraw from. The keeper can rebalance, cut risk at once and raise it back one step per four hours, and nothing else.`],
+            ['Is my money guaranteed?', `No. The floor is defended by code, not guaranteed. ${stock && calc ? `Today, of ${usd(amount)} in ${name}, about ${usd(calc.inStock)} rides the stock and the rest earns interest. ` : ''}When the stock falls, the agent sells toward safety, so the floor only breaks if ${name} falls further than the vault can react to in one go, if the lending market fails, or if USDT loses its peg. There is no insurer behind it.`],
+            ['Why does trading at night matter?', `Banks can only sell while New York is open. Tokenized stocks keep trading at night and on weekends, and some big falls happen then: SanDisk once fell 20% before the next open. Plinth can sell during those hours. It also ignores short glitches in the price, so a bad tick never makes it sell at the bottom.`],
+            ['Where does the safe money go?', `Only to Venus and Aave, the two largest USDT lending markets on BNB Chain. Before every move the vault checks they are healthy. If neither is, the money waits as cash in your vault.`],
+            ['Can I leave any time?', `Yes. Withdraw any time at today's value. Only you can withdraw from your vault. The agent can rebalance and lower risk, but it can never take money out.`],
           ].map(([q, a], i) => (
             <Reveal key={q} delay={i * 80} className={`acc-row ${open === i ? 'open' : ''}`}>
               <button onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
@@ -270,38 +258,27 @@ export function Front() {
         </Reveal>
       </section>
 
-      {/* ------------------------------------------------------------ deposit */}
+      {/* ------------------------------------------------------------ agentic wallet */}
       <section className="deposit" id="deposit">
-        <Reveal as="h2">Use Binance Agentic Wallet? Let your agent open it.</Reveal>
-        <Reveal as="p" delay={60} className="muted lead-p">Same vault, opened by your agent with two contract calls in developer mode. Preview first, then execute.</Reveal>
-          <Reveal className="card steps" delay={100}>
-            <ol>
-              <li><b>Approve</b> USDT for the factory <code>{FACTORY}</code>, amount {amount}.</li>
-              <li><b>Call</b> <code>open({stock?.id ?? '…'}, {bps}, {amount}e18)</code> on the factory. Your vault is created and the money goes to work in the same transaction.</li>
-              <li><b>Watch it</b> at <code>/vault/&lt;your vault&gt;</code>: value, floor, break distance and every action with a BscScan link.</li>
-            </ol>
-            <p className="muted">Developer mode contract call, preview first, then execute. Positions live in your vault, not in the wallet.</p>
-          </Reveal>
+        <Reveal as="h2">Or just ask your Binance Agentic Wallet.</Reveal>
+        <Reveal as="p" delay={60} className="muted lead-p">
+          With the Plinth skill, your wallet's AI turns plain words into the exact steps, shows you the result before
+          anything runs, and acts only when you say yes. A real exchange, on the live vault:
+        </Reveal>
+        <Reveal className="chat" delay={100}>
+          <p className="msg you">Withdraw 5% of my Plinth vault.</p>
+          <p className="msg ai">That is about $0.53 at today's value. Here is the wallet's test run:</p>
+          <div className="msg preview">
+            <span><b>+0.5287 USDT</b> back to your wallet</span>
+            <span className="ok">Test run passed</span>
+            <span className="ok">No risks found</span>
+          </div>
+          <p className="msg you">Yes.</p>
+          <p className="msg ai">Done. <a href={`${BSCSCAN}/tx/0x5e00e4cc95dc12c7fef888a0bc93873493f5ec326cf7f91df1552baae4948f81`}>See it on BscScan</a></p>
+        </Reveal>
+        <Reveal as="p" delay={160} className="muted small chat-foot">Also works for "Protect $50 in Nvidia" and "How is my vault doing?". <a href="https://github.com/jenzylove/plinth/blob/main/skills/plinth/SKILL.md">Add the skill</a></Reveal>
       </section>
 
-      {/* ------------------------------------------------------------ sources */}
-      {calc && stock && (
-        <section className="sources-band">
-          <dl className="sources">
-            <div><dt>Safe leg now</dt><dd>{market ? <>{market.name}, {pct(market.rate, 2)} a year, {pct(market.utilization)} lent out, {GATE_CODES[market.gateCode]}</> : 'no lending market passes the health gate: funds would wait in USDT'}</dd></div>
-            {defi && defi.length > 0 && <div><dt>Binance DeFi API</dt><dd>
-              USDT earn products on BSC by size: {defi.slice(0, 6).map((d, i) => <span key={d.protocolId + i}>{i ? ', ' : ''}<span className={d.allowed ? '' : 'muted'}>{d.protocol} {pct(d.apy, 2)}</span></span>)}.
-              Plinth uses Venus and Aave only; the others carry risks a floor should not sit on (credit, synthetic dollars, lockups).
-            </dd></div>}
-            <div><dt>Floor assumes</dt><dd>{pct(calc.rate, 2)} a year (the safe leg's rate, capped at {pct(live!.maxFloorRate, 0)})</dd></div>
-            <div><dt>Multiplier</dt><dd>{stock.cap} for {name}, the highest with no floor breaks over 10 years (read from the factory)</dd></div>
-            <div><dt>ten year test</dt><dd>
-              {bps === 10_000 && cal ? <>{cal.windows} windows from {cal.from}: lowest {usd(cal.min * scale, 2)}, typical {usd(cal.median * scale)}, best {usd(cal.max * scale)}, beat plain lending {pct(cal.beatSafeOnly, 0)} of the time. </> : 'Covers the 100% floor. '}
-              {calibration.source}, {calibration.generated.slice(0, 10)}.
-            </dd></div>
-          </dl>
-        </section>
-      )}
 
       <Footer />
     </div>
@@ -316,9 +293,8 @@ function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo:
       .then((r) => (r.ok ? r.json() : null))
       // Only what the agent or the vault did, not the saver's own deposits and withdrawals.
       .then((d) => {
-        const keep = new Set(['MultiplierSet', 'Rebalanced', 'Traded', 'PulledOut', 'MovedSafeLeg', 'Impaired']);
-        const row = d?.rows?.find((r: { event: string }) => keep.has(r.event));
-        setLast(row ? row.detail.split(';')[0] : d ? 'no keeper action yet' : 'history unavailable');
+        const plain = d?.rows ? humanize(d.rows, 'Nvidia').filter((x) => x.tone !== 'you') : [];
+        setLast(plain.length ? plain[0].text : d ? 'nothing yet' : 'history unavailable');
       })
       .catch(() => setLast('history unavailable'));
   }, []);
@@ -339,7 +315,7 @@ function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo:
         <div className="laptop-screen">
           <div className="app-bar">
             <span className="brand-sm"><span className="logo-dot" /> plinth</span>
-            <span className="tabs"><b>Overview</b><span>Actions</span><span>Proof</span></span>
+            <span className="tabs"><b>Overview</b><span>Activity</span><span>Proof</span></span>
             <span className="muted mono">{short(DEMO_VAULT)}</span>
           </div>
           <div className="laptop-grid">
@@ -355,12 +331,12 @@ function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo:
               )}
             </div>
             <div className="tile-row">
-              <div className="tile"><span>Break distance</span><b>{bd === null ? '–' : pct(bd)}</b></div>
-              <div className="tile"><span>Multiplier</span><b>{v ? n(v.multiplier) : '–'}</b></div>
-              <div className="tile dark"><span>Safe leg</span><b>{v ? pct(n(v.floorRate), 2) : '–'}</b></div>
+              <div className="tile"><span>Drop it can take</span><b>{bd === null ? '–' : pct(bd)}</b></div>
+              <div className="tile"><span>Risk level</span><b>{v ? n(v.multiplier) : '–'}</b></div>
+              <div className="tile dark"><span>Interest</span><b>{v ? pct(n(v.floorRate), 2) : '–'}</b></div>
             </div>
           </div>
-          <p className="device-label">Replay · Nvidia, Nov 2018 · value above the floor at each step</p>
+          <p className="device-label">Replay of Nvidia, November 2018: value above the floor, day by day</p>
           <Bars />
         </div>
         <div className="laptop-base" />
@@ -373,14 +349,13 @@ function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo:
           <p className="device-label">Value now</p>
           <p className="phone-big">{v ? <CountUp value={n(v.total)} format={(x) => usd(x, 2)} /> : '…'}</p>
           {v && <p className={`delta ${gain >= 0 ? 'up' : 'down'}`}>{gain >= 0 ? '+' : '−'}{usd(Math.abs(gain), 2)} since you opened it</p>}
-          <div className="phone-chart"><Bars every={2} /></div>
           <div className="phone-tiles">
             <div className="tile"><span>Floor</span><b>{v ? usd(n(v.floor), 2) : '–'}</b></div>
             <div className="tile yellow"><span>In Nvidia</span><b>{v ? usd(n(v.stockUsd), 2) : '–'}</b></div>
-            <div className="tile red"><span>Break distance</span><b>{bd === null ? '–' : pct(bd)}</b></div>
-            <div className="tile dark"><span>Multiplier</span><b>{v ? n(v.multiplier) : '–'}</b></div>
+            <div className="tile red"><span>Drop it can take</span><b>{bd === null ? '–' : pct(bd)}</b></div>
+            <div className="tile dark"><span>Risk level</span><b>{v ? n(v.multiplier) : '–'}</b></div>
           </div>
-          <div className="phone-row"><span className="muted">Keeper, last action</span><b>{last ?? 'reading…'}</b></div>
+          <div className="phone-row"><span className="muted">The agent's last move</span><b>{last ?? 'reading…'}</b></div>
           <a className="pill dark" href="/demo">Open the live vault →</a>
         </div>
       </div>
@@ -414,7 +389,7 @@ export function Footer() {
         </div>
         <div>
           <p className="foot-h">Risks</p>
-          <p className="muted small">A gap bigger than the break distance before anyone can trade. A lending pool failing faster than the health check. Smart contract bugs. Tokenized stocks are not the stocks themselves.</p>
+          <p className="muted small">A fall bigger than the vault can react to. A lending market failing. A bug in the contracts. Tokenized stocks are not the stocks themselves.</p>
         </div>
       </div>
       <p className="wordmark" aria-hidden>plinth</p>

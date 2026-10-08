@@ -136,7 +136,7 @@ section h2 { font: 500 clamp(32px, 4.4vw, 58px)/1.04 var(--sans); letter-spacing
 .huge-note a { color: var(--red); }
 
 /* ---------------------------------------------------------------- explain + device */
-.explain { padding: 60px 0; max-width: 860px; }
+.explain { padding: 60px 0; max-width: 860px; margin: 0 auto; }
 .acc h2 { margin-bottom: 24px; }
 .acc-row { background: var(--card); border-radius: 22px; margin-bottom: 10px; overflow: hidden; }
 .acc-row button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 16px; font: 500 19px var(--sans); color: var(--ink); background: none; border: 0; padding: 20px 22px; cursor: pointer; text-align: left; }
@@ -322,3 +322,86 @@ td:first-child { font: 500 15px var(--sans); }
 .outcomes > p { margin-top: 12px; }
 .outcomes a { color: var(--red); }
 @media (max-width: 720px) { .outcome { grid-template-columns: 1fr; gap: 8px; } }
+
+/* Calculator sentence: each phrase stays together, so a phone breaks between phrases, not inside them */
+.sentence .phrase { white-space: nowrap; display: inline-block; margin-right: 6px; }
+
+/* The replay number, framed so it reads on its own */
+.huge-kicker { font: 500 14px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.huge-sub { font-size: 18px; color: var(--muted); margin: 10px 0 0; }
+
+/* Agentic Wallet: one real exchange */
+.chat { display: grid; gap: 12px; max-width: 560px; margin: 8px 0 18px; }
+.msg { margin: 0; padding: 14px 18px; border-radius: 20px; font-size: 17px; line-height: 1.45; max-width: 85%; }
+.msg.you { justify-self: end; background: var(--black); color: var(--on-black); border-bottom-right-radius: 6px; }
+.msg.ai { justify-self: start; background: var(--card); border-bottom-left-radius: 6px; }
+.msg.ai a { color: var(--red); }
+.msg.preview { justify-self: start; background: var(--card); border: 1px solid var(--line); display: grid; gap: 6px; font-size: 15px; }
+.msg.preview .ok { color: var(--green); font-weight: 500; }
+.msg.preview .ok::before { content: '✓ '; }
+.chat-foot a { color: var(--red); }
+
+@media (max-width: 720px) {
+  .sentence { font-size: 24px; line-height: 1.7; }
+  .proofband { padding: 64px 0; gap: 20px; }
+  .huge-note p { font-size: 17px; }
+  .msg { max-width: 92%; font-size: 16px; }
+}
+
+/* Vault: how the money is split right now */
+.split-bar { margin-top: 20px; padding: 22px 24px; }
+.sb-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; font-size: 17px; margin-bottom: 14px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 4px; vertical-align: -1px; }
+.sw.stock, .sb .stock { background: var(--red); }
+.sw.safe, .sb .safe { background: var(--yellow); }
+.sb { display: flex; height: 14px; border-radius: 999px; overflow: hidden; }
+.sb i { display: block; height: 100%; }
+.sb .safe { flex: 1; }
+.split-bar p { margin: 12px 0 0; }
+
+/* Vault: method and roles, one tap away */
+.howcalc { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.howcalc summary { cursor: pointer; font-weight: 500; list-style: none; color: var(--muted); }
+.howcalc summary::before { content: '+ '; color: var(--red); }
+.howcalc[open] summary::before { content: '− '; }
+.howcalc .sources { margin-top: 14px; }
+
+/* Vault: activity in plain words */
+.feed { list-style: none; padding: 0; margin: 16px 0 40px; display: grid; gap: 10px; }
+.feed li { background: var(--card); border-radius: 18px; padding: 16px 20px; display: grid; grid-template-columns: 112px 1fr auto; gap: 6px 16px; align-items: baseline; }
+.ftag { font: 500 12px var(--mono); padding: 4px 10px; border-radius: 999px; justify-self: start; white-space: nowrap; }
+.ftag.you { background: var(--line); color: var(--ink); }
+.ftag.buy { background: var(--yellow); color: #111; }
+.ftag.sell, .ftag.risk { background: var(--red); color: #fff; }
+.ftag.safe { background: #e7f6ee; color: #146c43; }
+.ftag.alert { background: #111; color: #fff; }
+.ftext { font-size: 16px; line-height: 1.45; }
+.fmeta { font: 400 12px var(--mono); color: var(--muted); white-space: nowrap; }
+.fmeta a { color: var(--red); }
+@media (max-width: 720px) {
+  .feed li { grid-template-columns: 1fr; padding: 14px 16px; }
+  .sb-row { flex-direction: column; font-size: 16px; }
+}
+
+/* Proof: one finding per block, data one tap away */
+.finding { background: var(--card); border-radius: var(--r); padding: 32px 36px; margin: 0 0 22px; }
+.finding h2 { font-size: clamp(26px, 3.2vw, 40px); line-height: 1.12; letter-spacing: -0.03em; margin: 0 0 14px; max-width: 26em; }
+.finding > p.muted { font-size: 17px; max-width: 42em; }
+.f-kicker { font: 500 13px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--red); margin: 0 0 12px; }
+.f-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 20px 0 6px; }
+.f-cell { background: var(--bg); border-radius: 16px; padding: 14px 16px; display: grid; gap: 2px; }
+.f-cell span { font-weight: 500; }
+.f-cell b { font: 500 20px var(--sans); letter-spacing: -0.02em; }
+.f-cell small { color: var(--muted); font-size: 12px; }
+.finding .replay-fig { margin: 18px 0 4px; background: none; padding: 0; }
+.falls { display: grid; gap: 8px; margin: 18px 0 6px; }
+.fall { display: grid; grid-template-columns: 110px 1fr 56px; gap: 12px; align-items: center; font-size: 15px; }
+.fall i { display: block; height: 12px; border-radius: 999px; background: var(--red); }
+.fall b { font: 500 14px var(--mono); text-align: right; }
+.finding .table-wrap { padding: 4px 0; background: none; }
+.finding details table { min-width: 560px; }
+@media (max-width: 720px) {
+  .finding { padding: 22px 18px; border-radius: 22px; }
+  .f-grid { grid-template-columns: 1fr 1fr; }
+  .fall { grid-template-columns: 84px 1fr 48px; font-size: 14px; }
+}

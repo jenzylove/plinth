@@ -13,7 +13,13 @@ export const BSCSCAN = 'https://bscscan.com';
 
 export const client = createPublicClient({
   chain: bsc,
-  transport: fallback([http('https://bsc-dataseed.bnbchain.org'), http('https://bsc-rpc.publicnode.com')]),
+  // Free public nodes rate limit busy visitors; four sources, the last one Plinth's own relay, so a page never sits waiting.
+  transport: fallback([
+    http('https://bsc-dataseed.bnbchain.org', { timeout: 8_000 }),
+    http('https://bsc-rpc.publicnode.com', { timeout: 8_000 }),
+    http('https://bsc-dataseed1.defibit.io', { timeout: 8_000 }),
+    http('https://plinth-relay.vercel.app/api/rpc', { timeout: 12_000 }),
+  ]),
   batch: { multicall: true },
 });
 

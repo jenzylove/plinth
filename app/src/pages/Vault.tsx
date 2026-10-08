@@ -7,15 +7,19 @@ import { CountUp, Reveal } from '../motion';
 import { beginExit, canWithdraw, cancelExit, hasWallet, withdraw, withdrawInKind } from '../wallet';
 import { connect, useAccount } from '../account';
 import { Footer } from './Front';
+import { humanize, type LogRow } from '../humanize';
 
 type Status = Awaited<ReturnType<typeof vaultStatus>>;
 const MARKETS = ['Plain USDT (earning nothing)', 'Venus', 'Aave'];
 
-interface LogRow { event: string; block: number; tx: string; time?: number; detail: string; logIndex?: number }
 interface Exit { value: number; cost: number }
 interface Rfq { usdtOut: number; vendor: string }
 
 const when = (t: number) => new Date(t * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const day = (t: number) => { const d = new Date(t * 1000); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.toISOString().slice(11, 16)} UTC`; };
+const monthYear = (t: number) => { const d = new Date(t * 1000); return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+const PLAIN_MARKETS = ['cash in the vault', 'Venus', 'Aave'];
 
 export function VaultPage({ address, demo }: { address: Address; demo?: boolean }) {
   const [v, setV] = useState<Status | null>(null);
@@ -90,7 +94,7 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
 
   return (
     <section className="page vault">
-      {demo && <p className="banner">Live: a real vault on BSC mainnet. Everything here is read from the chain every 30 seconds.</p>}
+      {demo && <p className="banner">Live: a real vault with real money on BNB Chain. It updates every 30 seconds.</p>}
       <h1>{sym ? `${name} vault` : 'Vault'} <a className="addr" href={`${BSCSCAN}/address/${address}`}>{short(address)}</a></h1>
       {error && <p className="fail">Could not read this vault: {error}</p>}
       {!v && !error && <p className="muted">Reading the vault from BSC…</p>}
@@ -103,22 +107,22 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
         return (
           <>
             <div className="dash">
-              <Reveal className="card black"><span>Value now</span><strong><CountUp value={total} format={(x) => usd(x, 2)} /></strong><small>in USDT, read {readAt?.toISOString().slice(11, 19)} UTC</small></Reveal>
-              <Reveal className="card" delay={80}><span>Floor today</span><strong><CountUp value={floor} format={(x) => usd(x, 2)} /></strong><small>the line the vault defends; it grows to {usd(n(s.promised), 2)} by {new Date(Number(s.maturity) * 1000).toISOString().slice(0, 10)}</small></Reveal>
+              <Reveal className="card black"><span>Value now</span><strong><CountUp value={total} format={(x) => usd(x, 2)} /></strong><small>in USDT, updated {readAt?.toISOString().slice(11, 19)} UTC</small></Reveal>
+              <Reveal className="card" delay={80}><span>Floor today</span><strong><CountUp value={floor} format={(x) => usd(x, 2)} /></strong><small>what the vault defends now; it grows to {usd(n(s.promised), 2)} by {monthYear(Number(s.maturity))}</small></Reveal>
               <Reveal className="card" delay={160}>
-                <span>Break distance</span>
+                <span>Drop it can take</span>
                 <strong>{bd === null ? 'no stock' : <CountUp value={bd * 100} format={(x) => x.toFixed(1) + '%'} />}</strong>
-                <small>the single drop in {name} that would touch the floor today</small>
+                <small>how far {name} can fall at once before the floor is touched</small>
                 {bd !== null && <div className="meter"><i style={{ width: `${Math.min(100, bd * 100 * 2.5)}%` }} /></div>}
               </Reveal>
               <Reveal className="card" delay={240}>
                 <span>If you left today</span>
                 <strong>{exit === null ? '…' : exit === 'unavailable' ? usd(total, 2) : <CountUp value={exit.value} format={(x) => usd(x, 2)} />}</strong>
-                <small>{exit === null ? `quoting the vault's own pool` : exit === 'unavailable'
-                  ? `value now; the pool quote was not available, and the sale may cost up to ${pct(v.stock.maxSlippage)} of the stock part`
-                  : tokens <= 0 ? 'nothing in the stock right now: all in the safe part, back in full'
-                  : exit.cost > 0.005 ? `safe part back in full; the ${name} part sold on the ${routeName(v.stock)} the vault trades on, ${usd(exit.cost, 2)} below the vault's valuation. An estimate at this moment, not a minimum.`
-                  : `safe part back in full; the ${name} part sold on the ${routeName(v.stock)} the vault trades on, at about the vault's own valuation right now. An estimate, not a minimum.`}</small>
+                <small>{exit === null ? 'getting a live quote' : exit === 'unavailable'
+                  ? `value now; a live quote was not available, and selling may cost up to ${pct(v.stock.maxSlippage)} of the ${name} part`
+                  : tokens <= 0 ? 'everything is in the safe part, so it all comes back'
+                  : exit.cost > 0.005 ? `the safe part in full, plus the ${name} part sold at a live price (${usd(exit.cost, 2)} in selling costs). An estimate.`
+                  : `the safe part in full, plus the ${name} part sold at a live price. An estimate.`}</small>
               </Reveal>
             </div>
 
@@ -148,31 +152,46 @@ export function VaultPage({ address, demo }: { address: Address; demo?: boolean 
               {wd && <span className="muted">{wd}</span>}
             </div>
 
-            <dl className="sources" style={{ marginTop: 24 }}>
-              <div><dt>In {sym ?? 'stock'}</dt><dd>{usd(stockUsd, 2)} (target {usd(n(s.target), 2)}, multiplier {n(s.multiplier)} of cap {n(s.cap)})</dd></div>
-              <div><dt>Price</dt><dd>
-                {usd(n(s.price), 2)}{v.version === 3
-                  ? <>: the lower of the slow reference {usd(n(s.slowPrice), 2)} (Venus's feed or the 10 minute pool average) and the 60 second average {usd(n(s.fastPrice), 2)} once the live pool price confirms it</>
-                  : <>, the lower of {usd(n(s.slowPrice), 2)} (slow) and {usd(n(s.fastPrice), 2)} (fast)</>}
-                {ref && <>. Binance RWA Data API: bStock {usd(ref.tokenPrice, 2)}, underlying stock {usd(ref.referencePrice, 2)}</>}
-                {rfq && <>. Binance Trading API best route for this stock: {usd(rfq.usdtOut, 2)} via {rfq.vendor} (indicative; RFQ routes need a wallet signature a vault cannot give)</>}
-              </dd></div>
-              <div><dt>Safe leg</dt><dd>{usd(n(s.safeUsd), 2)} in {MARKETS[Number(s.marketIndex)] ?? `market ${s.marketIndex}`}, {pct(n(s.floorRate), 2)} a year, {GATE_CODES[s.gateCode] ?? `gate code ${s.gateCode}`}
-                {s.idleSince > 0n && <> · waiting in USDT since {when(Number(s.idleSince))}; the floor keeps the last healthy rate for 7 days</>}</dd></div>
-              <div><dt>Saver</dt><dd><a href={`${BSCSCAN}/address/${v.saver}`}>{short(v.saver)}</a></dd></div>
-              <div><dt>Keeper</dt><dd>{keeper ? <a href={`${BSCSCAN}/address/${keeper}`}>{short(keeper)}</a> : 'none'} (cuts risk at once; raises it back one step per four hours{v.version >= 2 && raiseAt > now ? `, next raise from ${when(raiseAt)}` : ''}; cannot withdraw)</dd></div>
-              {v.version < 3 && <div><dt>Contract</dt><dd>Plinth v{v.version}, superseded. New vaults open on v3 (docs/DEPLOYMENTS.md lists what changed).</dd></div>}
-            </dl>
+            <Reveal className="split-bar card">
+              <div className="sb-row">
+                <span><i className="sw stock" /> <b>{usd(stockUsd, 2)}</b> rides {name}</span>
+                <span><i className="sw safe" /> <b>{usd(n(s.safeUsd), 2)}</b> {Number(s.marketIndex) === 0 ? 'waits as cash' : <>earns {pct(n(s.floorRate), 2)} a year on {PLAIN_MARKETS[Number(s.marketIndex)]}</>}</span>
+              </div>
+              <div className="sb"><i className="stock" style={{ width: `${total > 0 ? (stockUsd / total) * 100 : 0}%` }} /><i className="safe" /></div>
+              <p className="muted small">The agent keeps this mix in balance{n(s.multiplier) < n(s.cap) ? `, and has lowered the risk level to ${n(s.multiplier)} of ${n(s.cap)} for now` : ''}. It can never withdraw.</p>
+            </Reveal>
+
+            <details className="howcalc">
+              <summary>How this is calculated</summary>
+                <dl className="sources">
+                <div><dt>In {sym ?? 'stock'}</dt><dd>{usd(stockUsd, 2)} (target {usd(n(s.target), 2)}, multiplier {n(s.multiplier)} of cap {n(s.cap)})</dd></div>
+                <div><dt>Price</dt><dd>
+                  {usd(n(s.price), 2)}{v.version === 3
+                    ? <>: the lower of the slow reference {usd(n(s.slowPrice), 2)} (Venus's feed or the 10 minute pool average) and the 60 second average {usd(n(s.fastPrice), 2)} once the live pool price confirms it</>
+                    : <>, the lower of {usd(n(s.slowPrice), 2)} (slow) and {usd(n(s.fastPrice), 2)} (fast)</>}
+                  {ref && <>. Binance RWA Data API: bStock {usd(ref.tokenPrice, 2)}, underlying stock {usd(ref.referencePrice, 2)}</>}
+                  {rfq && <>. Binance Trading API best route for this stock: {usd(rfq.usdtOut, 2)} via {rfq.vendor} (indicative; RFQ routes need a wallet signature a vault cannot give)</>}
+                </dd></div>
+                <div><dt>Safe leg</dt><dd>{usd(n(s.safeUsd), 2)} in {MARKETS[Number(s.marketIndex)] ?? `market ${s.marketIndex}`}, {pct(n(s.floorRate), 2)} a year, {GATE_CODES[s.gateCode] ?? `gate code ${s.gateCode}`}
+                  {s.idleSince > 0n && <> · waiting in USDT since {when(Number(s.idleSince))}; the floor keeps the last healthy rate for 7 days</>}</dd></div>
+                <div><dt>Saver</dt><dd><a href={`${BSCSCAN}/address/${v.saver}`}>{short(v.saver)}</a></dd></div>
+                <div><dt>Keeper</dt><dd>{keeper ? <a href={`${BSCSCAN}/address/${keeper}`}>{short(keeper)}</a> : 'none'} (cuts risk at once; raises it back one step per four hours{v.version >= 2 && raiseAt > now ? `, next raise from ${when(raiseAt)}` : ''}; cannot withdraw)</dd></div>
+                {v.version < 3 && <div><dt>Contract</dt><dd>Plinth v{v.version}, superseded. New vaults open on v3 (docs/DEPLOYMENTS.md lists what changed).</dd></div>}
+              </dl>
+            </details>
           </>
         );
       })()}
 
-      <h2>Every action</h2>
-      {log && (log.length === 0 ? <p className="muted">No actions yet.</p> : (
-        <ol className="log">
-          {log.map((r) => (
-            <li key={r.tx + r.event + r.logIndex}>
-              <span className={`ev ${r.event}`}>{r.event}</span> <span className="det">{r.detail}</span> <a href={`${BSCSCAN}/tx/${r.tx}`}>{short(r.tx)}</a> <span className="blk">{r.time ? when(r.time) : `block ${r.block}`}</span>
+      <h2>Activity</h2>
+      <p className="muted">Everything this vault has done, newest first. Each line links to its transaction.</p>
+      {log && (log.length === 0 ? <p className="muted">Nothing yet.</p> : (
+        <ol className="feed">
+          {humanize(log, name, v ? n(v.s.cap) : undefined).map((x) => (
+            <li key={x.row.tx + x.row.event + x.row.logIndex}>
+              <span className={`ftag ${x.tone}`}>{x.tag}</span>
+              <span className="ftext">{x.text}</span>
+              <span className="fmeta">{x.row.time ? day(x.row.time) : `block ${x.row.block}`} · <a href={`${BSCSCAN}/tx/${x.row.tx}`}>view</a></span>
             </li>
           ))}
         </ol>
