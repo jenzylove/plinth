@@ -68,7 +68,7 @@ Five minutes, no keys, no wallet.
 | Contracts | Live on BSC mainnet, verified on Sourcify (exact match). Three versions shipped, each fixing a review. No third party audit. |
 | Demo vault | Real USDT. Opened, partly withdrawn and migrated between versions from a Binance Agentic Wallet with Developer Mode contract calls, each previewed first. |
 | Keeper agent | Live. Passes every minute on a container host. ERC-8004 identity #363619. One ERC-8183 job negotiated, funded and delivered on mainnet (job 56898). |
-| Keeper acting on an event | On mainnet, on the earlier vault: it cut the multiplier from 5.7 to 4.2 before the US jobs report on 2 October ([cut](https://bscscan.com/tx/0x5df16b833af45c65ee885b2e95062d03f148431f46a775d91b37b3d4d612ab6a), [restore](https://bscscan.com/tx/0xe038a44a07abfd65eba167c71a21837dd03230c7266fdeca3a8782bc1b68a0f8)). No scheduled event falls before the submission deadline; the next is US CPI on 14 October. |
+| Keeper acting on an event | On mainnet, on the earlier vault: it cut the multiplier from 5.7 to 4.2 before the US jobs report on 2 October ([cut](https://bscscan.com/tx/0x5df16b833af45c65ee885b2e95062d03f148431f46a775d91b37b3d4d612ab6a), [restore](https://bscscan.com/tx/0xe038a44a07abfd65eba167c71a21837dd03230c7266fdeca3a8782bc1b68a0f8)). No scheduled event falls before the submission deadline. The next is US CPI on 14 October at 12:30 UTC, during judging: the agent will cut the demo vault's multiplier from 00:30 UTC that day and raise it back one step every four hours after 13:30 UTC, all on the [vault page](https://plinth-savings.vercel.app/demo). |
 | Crash response | Measured on a fork of mainnet, not on mainnet: a 10% fall in one block is sold within about a minute. The tests are in the repo. |
 | Off hours study | Real bStock prices from the Binance Web3 API, three months. Hourly bars stand in for the contract's minute scale rule, and the page says so. |
 | Backtest | Daily prices, ten years, multipliers chosen on the same history (in sample). Labelled on the proof page. |
@@ -121,6 +121,7 @@ bStocks trade through the night on deep BSC pools, and the lending markets that 
 |---|---|
 | Agent | `curl https://plinth-relay.vercel.app/agent/keeper` shows its passes, its longest gap and any gaps over five minutes since its last start |
 | Demo vault | https://plinth-savings.vercel.app/demo |
+| Next scheduled cut | US CPI, 14 October 12:30 UTC. Watch the demo vault's multiplier drop from 00:30 UTC and come back after the release |
 | Factory | [0x271cb3B5…DCe5](https://bscscan.com/address/0x271cb3B56E133cd3488AB31e99766A288bC8DCe5) |
 
 ## Run it
