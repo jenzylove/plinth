@@ -91,12 +91,8 @@ export function Front() {
 
   const scale = amount / 1000; // the backtest is per $1,000
 
-  // The replay's headline: margin over the floor right after Nvidia's 2018 gap opened.
+  // The 2018 replay feeds the laptop mockup's chart (labelled as a replay there).
   const r18 = replays.results[0];
-  const gapStep = replays.paths.paths[0].steps.findIndex((s: { date: string; kind: string }) => s.date === '2018-11-16' && s.kind === 'open');
-  const plinthAtGap = wad(r18.plinthTotal[gapStep]) - wad(r18.floor[gapStep]);
-  const bankAtGap = wad(r18.bankTotal[gapStep]) - wad(r18.floor[gapStep]);
-  const cutAtGap = wad(r18.bankCutTotal[gapStep]) - wad(r18.floor[gapStep]);
   const bars = r18.plinthTotal.map(wad);
   const bLo = Math.min(...r18.floor.map(wad)) - 3, bHi = Math.max(...bars);
 
@@ -208,21 +204,6 @@ export function Front() {
         </div>
       </section>
 
-      {/* ------------------------------------------------------------ the big number */}
-      <section className="proofband">
-        <Reveal className="huge-wrap">
-          <p className="huge-kicker">Nvidia, 16 Nov 2018: opened {pct(Math.abs(gap?.worstGap ?? 0.193))} down</p>
-          <div className="huge"><CountUp value={plinthAtGap} format={(x) => usd(x, 2)} /></div>
-          <p className="huge-sub">still above the floor, on $1,000</p>
-        </Reveal>
-        <Reveal className="huge-note" delay={150}>
-          <p>
-            We replayed that morning through Plinth's real contracts. A bank desk running the same method had
-            only <b>{usd(bankAtGap, 2)}</b> left above its floor. The difference: Plinth's agent cut risk before the earnings report.
-          </p>
-          <p className="muted"><a href="/proof">See the replay</a></p>
-        </Reveal>
-      </section>
 
 
       {/* ------------------------------------------------------------ explainer */}
