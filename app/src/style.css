@@ -231,7 +231,7 @@ section h2 { font: 500 clamp(32px, 4.4vw, 58px)/1.04 var(--sans); letter-spacing
 .foot { margin: 60px -16px 0; padding: 56px 16px 0; background: #0f0f0f; color: #f2f2ef; border-radius: 40px 40px 0 0; overflow: hidden; }
 .foot-in { max-width: 1200px; margin: 0 auto; }
 .foot .muted { color: #9a9a95; }
-.foot-cols { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1.4fr; gap: 32px; }
+.foot-cols { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 32px; }
 .foot-cols a { display: block; text-decoration: none; margin: 6px 0; font-size: 15px; }
 .foot-cols a:hover { color: var(--red); }
 .foot-h { font-weight: 600; margin: 0 0 10px; }
@@ -405,3 +405,23 @@ td:first-child { font: 500 15px var(--sans); }
   .f-grid { grid-template-columns: 1fr 1fr; }
   .fall { grid-template-columns: 84px 1fr 48px; font-size: 14px; }
 }
+
+/* Agentic Wallet onboarding */
+.onboard { display: grid; gap: 14px; max-width: 760px; margin: 8px 0 16px; }
+.ob-step { display: grid; grid-template-columns: 40px 1fr; gap: 16px; background: var(--card); border-radius: 22px; padding: 20px 22px; }
+.ob-step > i { width: 32px; height: 32px; border-radius: 50%; background: var(--black); color: var(--on-black); display: grid; place-items: center; font: 600 15px var(--sans); font-style: normal; }
+.ob-step b { font-size: 18px; }
+.ob-step p { margin: 6px 0 0; }
+.copy { display: flex; align-items: center; gap: 10px; margin-top: 10px; background: var(--bg); border-radius: 12px; padding: 8px 8px 8px 14px; min-width: 0; }
+.copy code { font: 400 13px var(--mono); overflow-x: auto; white-space: nowrap; flex: 1; min-width: 0; }
+.copy button { border: 0; border-radius: 999px; background: var(--black); color: var(--on-black); font: 500 13px var(--sans); padding: 7px 14px; cursor: pointer; flex: none; }
+.asks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.asks span { background: var(--black); color: var(--on-black); border-radius: 18px 18px 18px 6px; padding: 9px 14px; font-size: 15px; }
+
+/* The agent, live */
+.agent-live { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: 14px; }
+.agent-live i { width: 8px; height: 8px; border-radius: 50%; background: var(--grey); }
+.agent-live.on i { background: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 30%, transparent); animation: pulse 2s infinite; }
+@media (max-width: 720px) { .ob-step { grid-template-columns: 1fr; gap: 10px; padding: 18px; } }
+.onboard, .ob-step, .ob-step > div { min-width: 0; max-width: 100%; }
+.onboard { grid-template-columns: minmax(0, 1fr); }

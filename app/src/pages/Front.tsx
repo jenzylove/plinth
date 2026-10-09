@@ -203,6 +203,7 @@ export function Front() {
               When the stock falls it sells toward safety. It can never withdraw your money.
             </p>
             <div className="big">24/7<small>nights and weekends too</small></div>
+            <AgentLive />
           </Reveal>
         </div>
       </section>
@@ -259,26 +260,53 @@ export function Front() {
       </section>
 
       {/* ------------------------------------------------------------ agentic wallet */}
-      <section className="deposit" id="deposit">
-        <Reveal as="h2">Or just ask your Binance Agentic Wallet.</Reveal>
+      <section className="deposit" id="agent">
+        <Reveal as="h2">Prefer to just ask? Use your Binance Agentic Wallet.</Reveal>
         <Reveal as="p" delay={60} className="muted lead-p">
-          With the Plinth skill, your wallet's AI turns plain words into the exact steps, shows you the result before
-          anything runs, and acts only when you say yes. A real exchange, on the live vault:
+          If you use an AI assistant such as Claude Code, Cursor or Codex, you can open and manage a vault in plain words.
+          Your wallet shows exactly what will happen before anything runs, and nothing moves until you say yes.
         </Reveal>
-        <Reveal className="chat" delay={100}>
-          <p className="msg you">Withdraw 5% of my Plinth vault.</p>
-          <p className="msg ai">That is about $0.53 at today's value. Here is the wallet's test run:</p>
-          <div className="msg preview">
-            <span><b>+0.5287 USDT</b> back to your wallet</span>
-            <span className="ok">Test run passed</span>
-            <span className="ok">No risks found</span>
+        <Reveal className="onboard" delay={100}>
+          <div className="ob-step">
+            <i>1</i>
+            <div>
+              <b>Set up your Agentic Wallet</b>
+              <p className="muted">Create one in the Binance app, then add it to your assistant:</p>
+              <Copy text="npx skills add binance/binance-skills-hub/skills/binance-web3/binance-agentic-wallet" />
+            </div>
           </div>
-          <p className="msg you">Yes.</p>
-          <p className="msg ai">Done. <a href={`${BSCSCAN}/tx/0x5e00e4cc95dc12c7fef888a0bc93873493f5ec326cf7f91df1552baae4948f81`}>See it on BscScan</a></p>
+          <div className="ob-step">
+            <i>2</i>
+            <div>
+              <b>Turn on Developer Mode</b>
+              <p className="muted">In the Binance app, open your Agentic Wallet's settings. This lets it call Plinth's contract, still one previewed step at a time.</p>
+            </div>
+          </div>
+          <div className="ob-step">
+            <i>3</i>
+            <div>
+              <b>Add the Plinth skill</b>
+              <p className="muted">It teaches your assistant how Plinth works:</p>
+              <Copy text="npx skills add jenzylove/plinth" />
+            </div>
+          </div>
+          <div className="ob-step">
+            <i>4</i>
+            <div>
+              <b>Ask</b>
+              <div className="asks">
+                <span>"Protect $50 in Nvidia at 95%"</span>
+                <span>"How is my Plinth vault doing?"</span>
+                <span>"Withdraw 10% of my vault"</span>
+              </div>
+              <p className="muted">For each step your wallet shows the USDT that leaves or comes back and any risks it finds. You confirm, it runs.</p>
+            </div>
+          </div>
         </Reveal>
-        <Reveal as="p" delay={160} className="muted small chat-foot">Also works for "Protect $50 in Nvidia" and "How is my vault doing?". <a href="https://github.com/jenzylove/plinth/blob/main/skills/plinth/SKILL.md">Add the skill</a></Reveal>
+        <Reveal as="p" delay={160} className="muted small chat-foot">
+          Already tested on mainnet: <a href={`${BSCSCAN}/tx/0x5e00e4cc95dc12c7fef888a0bc93873493f5ec326cf7f91df1552baae4948f81`}>a withdrawal run through the skill</a>.
+        </Reveal>
       </section>
-
 
       <Footer />
     </div>
@@ -364,38 +392,60 @@ function Stage({ v, bars, bLo, bHi }: { v?: VaultLive['s']; bars: number[]; bLo:
 }
 
 export function Footer() {
-  const [keeper, setKeeper] = useState<string | null>(null);
-  useEffect(() => { currentKeeper().then(setKeeper).catch(() => setKeeper(null)); }, []);
+  const repo = 'https://github.com/jenzylove/plinth';
   return (
     <footer className="foot">
       <div className="foot-in">
       <div className="foot-cols">
         <div>
           <p className="foot-h">Plinth</p>
-          <p className="muted">Capital protected savings on tokenized stocks. Not a guarantee: a floor we defend, with the risks named.</p>
+          <p className="muted">Savings on tokenized US stocks, with a floor defended by code, not guaranteed. Built on BNB Chain.</p>
         </div>
         <div>
-          <p className="foot-h">On chain</p>
-          <a href={`${BSCSCAN}/address/${FACTORY}`}>Factory {short(FACTORY)}</a>
-          {keeper && <a href={`${BSCSCAN}/address/${keeper}`}>Keeper {short(keeper)}</a>}
-          <a href={`${RELAY}/api/health`}>Binance Web3 API relay</a>
-          <a href={`${BSCSCAN}/address/${DEMO_VAULT}`}>Live vault {short(DEMO_VAULT)}</a>
-        </div>
-        <div>
-          <p className="foot-h">Look closer</p>
-          <a href="/proof">Proof and replays</a>
+          <p className="foot-h">Product</p>
+          <a href="/#how">How it works</a>
           <a href="/demo">Live vault</a>
-          <a href="https://github.com/jenzylove/plinth">Code</a>
+          <a href="/proof">Proof</a>
         </div>
         <div>
-          <p className="foot-h">Risks</p>
-          <p className="muted small">A fall bigger than the vault can react to. A lending market failing. A bug in the contracts. Tokenized stocks are not the stocks themselves.</p>
+          <p className="foot-h">Build</p>
+          <a href={repo}>Code on GitHub</a>
+          <a href={`${repo}/blob/main/docs/DEPLOYMENTS.md`}>Contracts</a>
+          <a href={`${repo}/blob/main/skills/plinth/SKILL.md`}>Agentic Wallet skill</a>
         </div>
       </div>
       <p className="wordmark" aria-hidden>plinth</p>
       </div>
     </footer>
   );
+}
+
+/** A command with a copy button. */
+function Copy({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <div className="copy">
+      <code>{text}</code>
+      <button onClick={() => navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); })}>{done ? 'Copied' : 'Copy'}</button>
+    </div>
+  );
+}
+
+/** Whether the agent is running right now, from its own live status. Shows nothing rather than a guess. */
+function AgentLive() {
+  const [st, setSt] = useState<{ ago: number; checks: number } | null>(null);
+  useEffect(() => {
+    const load = () => fetch(`${RELAY}/agent/keeper`).then((r) => (r.ok ? r.json() : null))
+      .then((j) => j?.lastPassAt && setSt({ ago: Math.max(0, (Date.now() - Date.parse(j.lastPassAt)) / 1000), checks: j.passes }))
+      .catch(() => setSt(null));
+    load();
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!st) return null;
+  const fresh = st.ago < 300;
+  const ago = st.ago < 90 ? `${Math.round(st.ago)} seconds ago` : `${Math.round(st.ago / 60)} minutes ago`;
+  return <p className={`agent-live ${fresh ? 'on' : 'off'}`}><i />{fresh ? 'Online now' : 'Not checked recently'}: last check {ago}</p>;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
