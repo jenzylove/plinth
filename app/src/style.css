@@ -425,3 +425,6 @@ td:first-child { font: 500 15px var(--sans); }
 @media (max-width: 720px) { .ob-step { grid-template-columns: 1fr; gap: 10px; padding: 18px; } }
 .onboard, .ob-step, .ob-step > div { min-width: 0; max-width: 100%; }
 .onboard { grid-template-columns: minmax(0, 1fr); }
+/* The big wordmark is decoration: it must never sit over the footer links */
+.wordmark { pointer-events: none; position: relative; z-index: 0; }
+.foot-cols { position: relative; z-index: 1; }
