@@ -7,6 +7,7 @@ import replay2018 from '@data/replay-nvda-2018-11.json';
 import replay2026 from '@data/replay-nvda-2026-07.json';
 import replayUtil from '@data/replay-venus-utilization.json';
 import outcomesFile from '@data/outcomes-2026-10-05.json';
+import everyDayFile from '@data/backtest-every-day-2026-10-12.json';
 
 export const NAMES: Record<string, string> = {
   AAPL: 'Apple', AMZN: 'Amazon', BABA: 'Alibaba', CRCL: 'Circle', GME: 'GameStop', GOOGL: 'Alphabet',
@@ -52,3 +53,11 @@ export const alwaysOn = alwaysOnFile as unknown as {
 
 export interface OutcomeYear { from: string; to: string; hold: number; plinth: Record<string, number> }
 export const outcomes = outcomesFile as { generated: string; source: string; method: string; stocks: Record<string, { multiplier: number; windows: number; worst: OutcomeYear; typical: OutcomeYear; best: OutcomeYear }> };
+
+export interface EveryDayStock {
+  sym: string; multiplier: number; from: string; periods: number; min: number; median: number; max: number;
+  misses: { from: string; to: string; end: number }[];
+  split: { share: number; min: number; median: number; max: number; below: number; plinthAhead: number };
+}
+/** Every possible 12 month period (one starting each trading day), with every miss listed. */
+export const everyDay = everyDayFile as { generated: string; source: string; method: string; stocks: EveryDayStock[] };

@@ -70,7 +70,7 @@ What the data says, plainly: most of the protection on a known event comes from 
 
 ### 3.3 Stock universe and multiplier (computed, not set)
 - Universe: the 68 bStocks on BSC, filtered daily to those where a $10k sale costs at most 1% on-chain. 19 pass today.
-- Multiplier per stock: the highest value that never broke the floor over 10 years of real daily prices, capped at 6. Stocks with less than 2 years of history get 3.
+- Multiplier per stock: the highest value with no miss in a sample of 10 years of real daily prices (a 12 month period starting every 5 trading days), capped at 6. Stocks with less than 2 years of history get 3. Corrected 2026-10-12: counting every starting day there are 14 misses in 37,429 periods (README, "Correction after submission").
 - Example (today's calibration run): Tesla at 5.4 broke the floor in 8 windows; at 4 it broke in 0. So Tesla runs at 4.
 
 ### 3.4 Keeper agent on BNB Agent Studio
@@ -134,7 +134,7 @@ Sponsor tech:
 
 | Claim | Proof |
 |---|---|
-| Never ended below the floor over 10 years of real prices, for each listed stock | `/proof` backtest, code in repo, anyone can rerun |
+| The floor held in 99.96% of every possible 12 month period over 10 years of real prices (14 misses in 37,429, listed) | `/proof` backtest, `packages/core/scripts/backtest-every-day.ts`, anyone can rerun. The first version of this row said "never"; that was a sample |
 | Plinth defends at hours a bank desk cannot | Agent log timestamps on mainnet outside NYSE hours; `data/closed-hours-*.json` (bStock falls while NYSE was shut, from the Web3 API) |
 | The price rule survives bStock bad prints | `data/always-on-*.json`: naive always-on vs Plinth's rule vs a desk on three months of real hourly prices |
 | A crash sell fills within about a minute | Fork tests `test_crashSellsTowardSafety` and, for contrast, `test_v1Rule_slowPriceAloneCannotSellInACrash` |

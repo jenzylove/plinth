@@ -71,8 +71,19 @@ Five minutes, no keys, no wallet.
 | Keeper acting on an event | On mainnet, on the earlier vault: it cut the multiplier from 5.7 to 4.2 before the US jobs report on 2 October ([cut](https://bscscan.com/tx/0x5df16b833af45c65ee885b2e95062d03f148431f46a775d91b37b3d4d612ab6a), [restore](https://bscscan.com/tx/0xe038a44a07abfd65eba167c71a21837dd03230c7266fdeca3a8782bc1b68a0f8)). No scheduled event falls before the submission deadline. The next is US CPI on 14 October at 12:30 UTC, during judging: the agent will cut the demo vault's multiplier from 00:30 UTC that day and raise it back one step every four hours after 13:30 UTC, all on the [vault page](https://plinth-savings.vercel.app/demo). |
 | Crash response | Measured on a fork of mainnet, not on mainnet: a 10% fall in one block is sold within about a minute. The tests are in the repo. |
 | Off hours study | Real bStock prices from the Binance Web3 API, three months. Hourly bars stand in for the contract's minute scale rule, and the page says so. |
-| Backtest | Daily prices, ten years, multipliers chosen on the same history (in sample). Labelled on the proof page. |
+| Backtest | Daily prices, ten years, every possible 12 month period for the 19 stocks with enough history: the floor held in 99.96% of 37,429 periods. The 14 misses are listed on the proof page (worst: GameStop, $972.40 per $1,000, starting just before the January 2021 squeeze; the rest ended within half a percent). Multipliers were chosen on the same history (in sample), and no agent cuts are modelled. |
 | x402 | Hosting was paid once over x402 from the agent's wallet. That host never started, so the agent runs elsewhere. The paid report rail is not switched on: it needs a Binance Onchain Pay merchant account. The ERC-8183 report is priced at $0.01 USDT and works. |
+
+## Correction after submission (12 October 2026)
+
+The proof page and this README first said that no 12 month period in ten years ended below the floor. That was true
+only of the periods tested, which started every 5 trading days, and each stock's multiplier was picked as the highest
+with no miss in that sample. Testing every starting day (`packages/core/scripts/backtest-every-day.ts`,
+`data/backtest-every-day-2026-10-12.json`) finds 14 misses in 37,429 periods across the 19 listed stocks with enough
+history: Tesla 7, Strategy 4, Nvidia 1, Netflix 1, GameStop 1. Thirteen ended within half a percent of the floor;
+GameStop's ended 2.8% short. The same data shows what the floor costs: a fixed mix of the same starting stock share,
+bought once and held, ended below $1,000 in 13.1% of periods but ended ahead of Plinth in 70% of them. Only the claim
+and its evidence changed in this correction; no feature was added.
 
 ## Track by track
 
@@ -100,7 +111,7 @@ All calls go through a small relay in Singapore ([relay/](relay/)), because the 
 CPPI, the method banks have used for decades, enforced by a vault contract, one per saver.
 
 - **The floor.** Today's floor is the promise discounted at today's lending rate. What sits above it is the cushion.
-- **The stock part.** Only a multiple of the cushion goes into the stock: `target = min(total, multiplier x cushion)`. A stock's multiplier is the highest one that never ended a ten year window below the floor, capped at 6.
+- **The stock part.** Only a multiple of the cushion goes into the stock: `target = min(total, multiplier x cushion)`. A stock's multiplier was chosen as the highest one with no miss in a sample of ten years of 12 month periods (one starting every 5 trading days), capped at 6. Counting every starting day, the floor held in 99.96% of 37,429 periods and missed in 14 (see the correction below).
 - **The safe part.** The rest is lent on Venus core or Aave v3 behind a health gate: cash, utilization, pauses, the USDT feed. If a market fails the gate the vault leaves it. If a market will not pay out, the vault keeps tracking the position and only sells stock until it does.
 - **The agent.** It rebalances drifting vaults, cuts risk before earnings and US macro releases, and pulls the safe part out of unhealthy markets. It can cut the multiplier at once and raise it back one step per four hours. It can never withdraw. Anyone can rebalance, so vaults stay defended if the agent is down.
 - **Around the clock.** The vault values the stock at `min(slow reference, max(60 second average, live pool price))`. A fall that lasts is sold within about a minute. A bad print that recovers is ignored. A spike is never chased.

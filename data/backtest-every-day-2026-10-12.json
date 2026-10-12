@@ -1,0 +1,462 @@
+{
+ "generated": "2026-10-12T02:45:11.111Z",
+ "source": "Yahoo Finance daily bars, range=10y, split-adjusted",
+ "method": "One 12 month period starting on every trading day. Multipliers as deployed in the factory (from data/calibration-2026-09-30.json). Rebalance at the open when the stock part drifts 10% from target, 0.3% cost per trade, safe part at a fixed 3.5% a year, overnight gaps hit before anyone can act. A miss is a period ending below $999.50 per $1,000. End values are gross. No event cuts by the agent are modelled. The fixed split buys the same starting share of stock once and holds it, with the rest at the same rate.",
+ "totals": {
+  "stocks": 20,
+  "periods": 39691,
+  "misses": 15,
+  "held": 0.999622080572422,
+  "worst": 972.4,
+  "split": {
+   "below": 5278,
+   "belowShare": 0.1329772492504598,
+   "plinthAheadShare": 0.2941220931697362,
+   "plinthMean": 1169.03,
+   "splitMean": 1119.85
+  }
+ },
+ "stocks": [
+  {
+   "sym": "AAPL",
+   "multiplier": 6,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 1000.26,
+   "median": 1028.46,
+   "max": 1758.44,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 966.25,
+    "median": 1079.91,
+    "max": 1358.06,
+    "below": 35,
+    "plinthAhead": 304
+   }
+  },
+  {
+   "sym": "AMZN",
+   "multiplier": 6,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 1000,
+   "median": 1011.98,
+   "max": 1700.9,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 921.98,
+    "median": 1067.38,
+    "max": 1253.25,
+    "below": 261,
+    "plinthAhead": 536
+   }
+  },
+  {
+   "sym": "BABA",
+   "multiplier": 6,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 1000,
+   "median": 1001.81,
+   "max": 1670.69,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 893.31,
+    "median": 1034.49,
+    "max": 1258.95,
+    "below": 664,
+    "plinthAhead": 810
+   }
+  },
+  {
+   "sym": "CRCL",
+   "multiplier": 3,
+   "from": "2025-06-05",
+   "periods": 87,
+   "min": 1000.04,
+   "median": 1000.33,
+   "max": 1002.01,
+   "misses": [],
+   "split": {
+    "share": 0.101,
+    "min": 956.22,
+    "median": 984.98,
+    "max": 1030.29,
+    "below": 68,
+    "plinthAhead": 71
+   }
+  },
+  {
+   "sym": "GME",
+   "multiplier": 1.7,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 972.4,
+   "median": 1016.96,
+   "max": 11143.85,
+   "misses": [
+    {
+     "from": "2020-12-24",
+     "to": "2021-12-27",
+     "end": 972.4
+    }
+   ],
+   "split": {
+    "share": 0.057,
+    "min": 988.42,
+    "median": 1022.87,
+    "max": 5715.33,
+    "below": 163,
+    "plinthAhead": 644
+   }
+  },
+  {
+   "sym": "GOOGL",
+   "multiplier": 6,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 1000.09,
+   "median": 1027.25,
+   "max": 2132.28,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 940.12,
+    "median": 1083.09,
+    "max": 1362.45,
+    "below": 182,
+    "plinthAhead": 567
+   }
+  },
+  {
+   "sym": "HOOD",
+   "multiplier": 4.2,
+   "from": "2021-07-29",
+   "periods": 1054,
+   "min": 1000,
+   "median": 1002.06,
+   "max": 3693.84,
+   "misses": [],
+   "split": {
+    "share": 0.142,
+    "min": 909.89,
+    "median": 1112.45,
+    "max": 1847.23,
+    "below": 165,
+    "plinthAhead": 205
+   }
+  },
+  {
+   "sym": "INTC",
+   "multiplier": 3.3,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 999.69,
+   "median": 1023.37,
+   "max": 2658.23,
+   "misses": [],
+   "split": {
+    "share": 0.112,
+    "min": 963.85,
+    "median": 1039.31,
+    "max": 1649.18,
+    "below": 471,
+    "plinthAhead": 789
+   }
+  },
+  {
+   "sym": "META",
+   "multiplier": 3.9,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 999.69,
+   "median": 1026.4,
+   "max": 2152.21,
+   "misses": [],
+   "split": {
+    "share": 0.132,
+    "min": 933.75,
+    "median": 1062.34,
+    "max": 1365.53,
+    "below": 269,
+    "plinthAhead": 536
+   }
+  },
+  {
+   "sym": "MRVL",
+   "multiplier": 5.9,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 997.06,
+   "median": 1003.65,
+   "max": 2127.71,
+   "misses": [
+    {
+     "from": "2025-03-05",
+     "to": "2026-03-06",
+     "end": 997.06
+    }
+   ],
+   "split": {
+    "share": 0.2,
+    "min": 907.02,
+    "median": 1092.78,
+    "max": 1840.59,
+    "below": 366,
+    "plinthAhead": 433
+   }
+  },
+  {
+   "sym": "MSFT",
+   "multiplier": 6,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 1000.33,
+   "median": 1038.1,
+   "max": 1398.79,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 955.85,
+    "median": 1091.84,
+    "max": 1191.58,
+    "below": 141,
+    "plinthAhead": 534
+   }
+  },
+  {
+   "sym": "MSTR",
+   "multiplier": 3.2,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 998.55,
+   "median": 1012.14,
+   "max": 3956.49,
+   "misses": [
+    {
+     "from": "2022-06-09",
+     "to": "2023-06-12",
+     "end": 999.21
+    },
+    {
+     "from": "2023-08-11",
+     "to": "2024-08-13",
+     "end": 998.58
+    },
+    {
+     "from": "2023-10-30",
+     "to": "2024-10-30",
+     "end": 998.55
+    },
+    {
+     "from": "2024-01-22",
+     "to": "2025-01-23",
+     "end": 998.56
+    }
+   ],
+   "split": {
+    "share": 0.108,
+    "min": 944.4,
+    "median": 1037.55,
+    "max": 1928.26,
+    "below": 659,
+    "plinthAhead": 1104
+   }
+  },
+  {
+   "sym": "NFLX",
+   "multiplier": 3.5,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 998.02,
+   "median": 1045.11,
+   "max": 1564.94,
+   "misses": [
+    {
+     "from": "2022-04-19",
+     "to": "2023-04-20",
+     "end": 998.02
+    }
+   ],
+   "split": {
+    "share": 0.118,
+    "min": 950.14,
+    "median": 1078.23,
+    "max": 1241.9,
+    "below": 350,
+    "plinthAhead": 898
+   }
+  },
+  {
+   "sym": "NVDA",
+   "multiplier": 5.7,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 995.38,
+   "median": 1027.55,
+   "max": 2967.98,
+   "misses": [
+    {
+     "from": "2018-11-15",
+     "to": "2019-11-18",
+     "end": 995.38
+    }
+   ],
+   "split": {
+    "share": 0.193,
+    "min": 921.92,
+    "median": 1163.09,
+    "max": 1614.65,
+    "below": 359,
+    "plinthAhead": 909
+   }
+  },
+  {
+   "sym": "QQQ",
+   "multiplier": 6,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 1000.3,
+   "median": 1041.96,
+   "max": 1493.7,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 956.98,
+    "median": 1078.76,
+    "max": 1210.23,
+    "below": 158,
+    "plinthAhead": 634
+   }
+  },
+  {
+   "sym": "SKHY",
+   "multiplier": 6,
+   "from": "2016-10-12",
+   "periods": 2194,
+   "min": 1000.05,
+   "median": 1006.38,
+   "max": 8835.26,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 948.52,
+    "median": 1086.37,
+    "max": 3414.31,
+    "below": 315,
+    "plinthAhead": 599
+   }
+  },
+  {
+   "sym": "SNDK",
+   "multiplier": 3,
+   "from": "2025-02-13",
+   "periods": 164,
+   "min": 3256.2,
+   "median": 15059.82,
+   "max": 24248.8,
+   "misses": [],
+   "split": {
+    "share": 0.101,
+    "min": 2025.04,
+    "median": 4007.15,
+    "max": 6092.21,
+    "below": 0,
+    "plinthAhead": 164
+   }
+  },
+  {
+   "sym": "SPY",
+   "multiplier": 6,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 1002.57,
+   "median": 1039.82,
+   "max": 1380.36,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 987.37,
+    "median": 1061.13,
+    "max": 1184.07,
+    "below": 62,
+    "plinthAhead": 730
+   }
+  },
+  {
+   "sym": "TSLA",
+   "multiplier": 5.1,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 995.86,
+   "median": 1000.87,
+   "max": 7417.68,
+   "misses": [
+    {
+     "from": "2019-04-22",
+     "to": "2020-04-21",
+     "end": 999.35
+    },
+    {
+     "from": "2019-04-23",
+     "to": "2020-04-22",
+     "end": 999.37
+    },
+    {
+     "from": "2019-04-24",
+     "to": "2020-04-23",
+     "end": 999.22
+    },
+    {
+     "from": "2019-11-19",
+     "to": "2020-11-18",
+     "end": 999.46
+    },
+    {
+     "from": "2019-12-16",
+     "to": "2020-12-15",
+     "end": 999.36
+    },
+    {
+     "from": "2019-12-17",
+     "to": "2020-12-16",
+     "end": 999.07
+    },
+    {
+     "from": "2020-03-12",
+     "to": "2021-03-12",
+     "end": 995.86
+    }
+   ],
+   "split": {
+    "share": 0.172,
+    "min": 905.36,
+    "median": 1064.7,
+    "max": 2755.45,
+    "below": 348,
+    "plinthAhead": 582
+   }
+  },
+  {
+   "sym": "TSM",
+   "multiplier": 6,
+   "from": "2016-10-10",
+   "periods": 2262,
+   "min": 1000.05,
+   "median": 1026.41,
+   "max": 2155.9,
+   "misses": [],
+   "split": {
+    "share": 0.203,
+    "min": 934.1,
+    "median": 1104.66,
+    "max": 1379.08,
+    "below": 242,
+    "plinthAhead": 625
+   }
+  }
+ ]
+}

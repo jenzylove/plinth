@@ -1,5 +1,6 @@
 // Multiplier calibration and backtest over real daily prices.
-// Rule: for each stock, the multiplier is the highest value (step 0.1, cap 6) that never ended a
+// Rule: for each stock, the multiplier is the highest value (step 0.1, cap 6) that, in the sampled windows
+// (backtest() starts one every `stepDays` trading days, 5 by default), never ended a
 // 12-month window below the floor across the stock's price history. History shorter than two years -> 3.
 
 import { floorValue, targetStock, YEAR_SECONDS } from './cppi.js';
@@ -88,7 +89,8 @@ export function backtest(bars: Bar[], cfg: BacktestConfig, stepDays = 5): Backte
 export const MULTIPLIER_CAP = 6;
 export const SHORT_HISTORY_MULTIPLIER = 3;
 
-/** Highest multiplier with zero breaches over the history, in steps of 0.1, capped. */
+/** Highest multiplier with zero breaches in the sampled windows (every 5th start day), in steps of 0.1, capped.
+ *  Windows starting on the other days can still breach: scripts/backtest-every-day.ts counts them all. */
 export function calibrateMultiplier(bars: Bar[], base = DEFAULT_CONFIG): number {
   if (bars.length < 2 * 252) return SHORT_HISTORY_MULTIPLIER;
   let best = 1;

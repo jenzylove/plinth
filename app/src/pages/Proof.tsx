@@ -1,12 +1,16 @@
-import { alwaysOn, calibration, closedHours, gaps, NAMES, replays, stocks, type ReplayResult } from '../data';
+import { alwaysOn, calibration, closedHours, everyDay, gaps, NAMES, replays, stocks, type ReplayResult } from '../data';
 import { pct, usd, wad } from '../format';
 import { Footer } from './Front';
 
 export function Proof() {
-  const cfg = calibration.config;
-  const tested = calibration.stocks.filter((c) => stocks.some((s) => s.sym === c.sym) && c.windows > 0);
-  const periods = tested.reduce((a, c) => a + c.windows, 0);
-  const misses = tested.reduce((a, c) => a + c.breaches, 0);
+  // Every possible 12 month period for the listed stocks, at the multipliers the factory uses.
+  const tested = everyDay.stocks.filter((c) => stocks.some((s) => s.sym === c.sym));
+  const periods = tested.reduce((a, c) => a + c.periods, 0);
+  const missed = tested.filter((c) => c.misses.length > 0).sort((a, b) => a.min - b.min);
+  const misses = missed.reduce((a, c) => a + c.misses.length, 0);
+  const splitBelow = tested.reduce((a, c) => a + c.split.below, 0);
+  const plinthAhead = tested.reduce((a, c) => a + c.split.plinthAhead, 0);
+  const mid = (xs: number[]) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
   const r18 = replays.results[0];
   const p18 = r18.plinthTotal.map(wad), b18 = r18.bankTotal.map(wad), f18 = r18.floor.map(wad);
   const closestP = Math.min(...p18.map((x, k) => x - f18[k])), closestB = Math.min(...b18.map((x, k) => x - f18[k]));
@@ -25,60 +29,83 @@ export function Proof() {
 
       <article className="finding">
         <p className="f-kicker">1 · Ten years of real prices</p>
-        <h2>{periods.toLocaleString()} twelve month periods across {tested.length} stocks. The floor held in {misses === 0 ? 'every one' : `all but ${misses}`}.</h2>
+        <h2>{periods.toLocaleString()} twelve month periods, one starting every trading day. The floor held in {pct(1 - misses / periods, 2)}.</h2>
         <p className="muted">
-          We ran the vault's rules through every stock's daily prices since 2016, starting a new 12 months every week.
-          Each stock's risk level was chosen on this same history, so this shows the rules on the past, not a forecast.
+          We ran the vault's rules through {tested.length} stocks' daily prices since 2016. In {misses} periods the vault
+          ended below what it was defending. That is why the floor is defended, not guaranteed. Each stock's risk level
+          was chosen on this same history, so this shows the rules on the past, not a forecast.
+        </p>
+        <div className="misses">
+          {missed.map((c) => (
+            <div className="miss" key={c.sym}>
+              <span>{NAMES[c.sym] ?? c.sym}</span>
+              <b>{c.misses.length} of {c.periods.toLocaleString()}</b>
+              <small>worst ended at {usd(c.min, 2)} per $1,000, starting {c.misses.reduce((a, m) => (m.end < a.end ? m : a)).from}</small>
+            </div>
+          ))}
+        </div>
+        <p className="muted">
+          <b>Against simply holding a fixed mix.</b> Buying the same starting share of stock once and leaving the rest
+          lent out ended below $1,000 in {pct(splitBelow / periods, 1)} of these periods, against Plinth's {pct(misses / periods, 2)}.
+          It also ended ahead of Plinth in {pct(1 - plinthAhead / periods, 0)} of them: a typical year paid about {usd(mid(tested.map((c) => c.split.median)))} against
+          Plinth's {usd(mid(tested.map((c) => c.median)))}. Plinth gives up some of an ordinary year to protect the bad ones and
+          keep more of the best ones.
         </p>
         <div className="f-grid">
           {['NVDA', 'AAPL', 'TSLA', 'MSFT', 'META', 'SPY'].map((sym) => tested.find((c) => c.sym === sym)).filter((c): c is (typeof tested)[number] => !!c).map((c) => (
             <div className="f-cell" key={c.sym}>
               <span>{NAMES[c.sym] ?? c.sym}</span>
               <b>{usd(c.min, 2)} to {usd(c.max)}</b>
-              <small>worst and best year, per $1,000</small>
+              <small>worst and best period, per $1,000</small>
             </div>
           ))}
         </div>
         <details className="howcalc">
           <summary>See all the data</summary>
           <p className="muted small">
-            {calibration.source}. Floor 100%, safe part {pct(cfg.rate)} a year, {pct(cfg.cost)} cost per trade, rebalance
-            when the stock part drifts {pct(cfg.band, 0)} from target. Rule: {calibration.rule}. A period counts as a miss
-            only if it ends more than 50 cents per $1,000 below the floor. End values are gross (stock still held is valued
-            at the close). Prices are daily; nothing inside the day is modelled. Stocks with under 2 years of history run
-            at 3 by rule, not by test. Generated {calibration.generated.slice(0, 10)}.
+            {everyDay.source}. {everyDay.method} Generated {everyDay.generated.slice(0, 10)}.
+          </p>
+          <p className="muted small">
+            <b>Corrected on 12 October 2026, after submission.</b> This page first said the floor held in every one of 7,492
+            periods. That count started a period every 5 trading days, and each stock's risk level was picked as the highest
+            with no miss in that sample. Counting every starting day finds the {misses} misses above. The earlier sample is
+            still in the repository (data/calibration-2026-09-30.json).
           </p>
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Stock</th><th>Risk level</th><th>Periods</th><th>Worst</th><th>Typical</th><th>Best</th><th>Misses</th><th>Beat lending</th><th>Worst overnight gap</th></tr>
+                <tr><th>Stock</th><th>Risk level</th><th>Periods</th><th>Worst</th><th>Typical</th><th>Best</th><th>Misses</th><th>Fixed mix: worst</th><th>Fixed mix: typical</th><th>Fixed mix below $1,000</th><th>Worst overnight gap</th></tr>
               </thead>
               <tbody>
-                {calibration.stocks.filter((c) => stocks.some((s) => s.sym === c.sym)).map((c) => {
+                {tested.map((c) => {
                   const g = gaps.stocks.find((x) => x.sym === c.sym);
                   return (
                     <tr key={c.sym}>
                       <td>{NAMES[c.sym] ?? c.sym}</td>
                       <td>{c.multiplier}</td>
-                      <td>{c.windows}</td>
-                      {c.windows > 0 ? (
-                        <>
-                          <td>{usd(c.min, 2)}</td>
-                          <td>{usd(c.median)}</td>
-                          <td>{usd(c.max)}</td>
-                          <td>{c.breaches}</td>
-                          <td>{pct(c.beatSafeOnly, 0)}</td>
-                        </>
-                      ) : (
-                        <td colSpan={5} className="muted">Under 2 years of history: runs at 3</td>
-                      )}
+                      <td>{c.periods.toLocaleString()}</td>
+                      <td className={c.misses.length ? 'fail' : ''}>{usd(c.min, 2)}</td>
+                      <td>{usd(c.median)}</td>
+                      <td>{usd(c.max)}</td>
+                      <td className={c.misses.length ? 'fail' : ''}>{c.misses.length}</td>
+                      <td>{usd(c.split.min)}</td>
+                      <td>{usd(c.split.median)}</td>
+                      <td>{c.split.below.toLocaleString()}</td>
                       <td>{g ? `${pct(g.worstGap)} on ${g.on}` : '–'}</td>
                     </tr>
                   );
                 })}
+                {calibration.stocks.filter((c) => stocks.some((s) => s.sym === c.sym) && !c.windows).map((c) => (
+                  <tr key={c.sym}><td>{NAMES[c.sym] ?? c.sym}</td><td>{c.multiplier}</td><td colSpan={9} className="muted">Under 2 years of history: no full 12 month period yet, so it runs at 3 by rule</td></tr>
+                ))}
               </tbody>
             </table>
           </div>
+          {missed.length > 0 && (
+            <p className="muted small">
+              Every miss, by starting day: {missed.map((c) => `${NAMES[c.sym] ?? c.sym} ${c.misses.map((m) => `${m.from} (${usd(m.end, 2)})`).join(', ')}`).join('; ')}.
+            </p>
+          )}
         </details>
       </article>
 
